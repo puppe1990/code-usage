@@ -3,83 +3,83 @@
 [![Frontend](https://github.com/puppe1990/code-usage/actions/workflows/frontend.yml/badge.svg)](https://github.com/puppe1990/code-usage/actions/workflows/frontend.yml)
 [![Rust](https://github.com/puppe1990/code-usage/actions/workflows/rust.yml/badge.svg)](https://github.com/puppe1990/code-usage/actions/workflows/rust.yml)
 
-App de barra de menu (macOS) que mostra o usage do **Command Code**, **Grok** e **OpenCode** em um só lugar.
+A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **OpenCode** in one place.
 
-- **Título na barra:** `46% · $0.42 · $1.03` → percentual semanal do Grok · custo de hoje do Command Code · custo de hoje do OpenCode
-- **Clique no ícone:** painel com hoje / 7 dias / 30 dias por provider, tokens (input, output, cache), o período semanal do Grok e o bloco de limites do Command Code (plano, % usado, requests, renovação e janelas de 5h/semanal)
-- **Local por padrão:** custos e tokens vêm só dos arquivos que cada CLI grava na máquina. A **única** chamada de rede é para ler os limites do plano do Command Code (ver abaixo).
+- **Menu bar title:** `46% · $0.42 · $1.03` → Grok weekly percentage · today's Command Code cost · today's OpenCode cost
+- **Click the icon:** a panel with today / 7 days / 30 days per provider, tokens (input, output, cache), the Grok weekly window and the Command Code plan limits (plan, percentage used, requests, renewal and the 5-hour/weekly windows)
+- **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The **only** network call reads your Command Code plan limits (see below).
 
-## Fontes de dados
+## Data sources
 
-| Provider               | Fonte                                                                                                   | O que é lido                                                                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Command Code           | `~/.commandcode/projects/<slug>/<session>.jsonl`                                                        | linhas de mensagem do assistant com `usage.costUsd` e tokens                                                                                                                                    |
-| Command Code (limites) | `api.commandcode.ai` — `/alpha/usage/summary`, `/alpha/billing/credits`, `/alpha/billing/subscriptions` | plano, % do plano usado, requests do período, saldo de créditos e janelas de 5h/semanal (mesmos endpoints que o `/usage` do CLI usa, autenticados com o `apiKey` do `~/.commandcode/auth.json`) |
-| Grok                   | `~/.grok/logs/unified.jsonl`                                                                            | eventos `billing: fetched credits config` (percentual do período) e `shell.turn.inference_done` (tokens)                                                                                        |
-| OpenCode               | `~/.local/share/opencode/opencode.db` (SQLite, somente leitura)                                         | tabela `message`, JSON com `cost` e `tokens`                                                                                                                                                    |
+| Provider                   | Source                                                                                                  | What is read                                                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Command Code               | `~/.commandcode/projects/<slug>/<session>.jsonl`                                                        | assistant message lines with `usage.costUsd` and tokens                                                                                                                                            |
+| Command Code (plan limits) | `api.commandcode.ai` — `/alpha/usage/summary`, `/alpha/billing/credits`, `/alpha/billing/subscriptions` | plan, percentage used, period requests, credit balance and the 5-hour/weekly windows (the same endpoints the CLI's `/usage` uses, authenticated with the `apiKey` from `~/.commandcode/auth.json`) |
+| Grok                       | `~/.grok/logs/unified.jsonl`                                                                            | `billing: fetched credits config` events (period percentage) and `shell.turn.inference_done` (tokens)                                                                                              |
+| OpenCode                   | `~/.local/share/opencode/opencode.db` (SQLite, read-only)                                               | `message` table, JSON payload with `cost` and `tokens`                                                                                                                                             |
 
-Caminhos podem ser sobrescritos por variáveis de ambiente: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`.
+Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`.
 
-## Limitações (por design dos CLIs)
+## Limitations (by design of each CLI)
 
-- **Command Code (limites)** usa a API interna do CLI — é um endpoint `alpha`, sem contrato público, e pode mudar sem aviso. Os limites são buscados no máximo a cada 5 minutos; se a chamada falhar, o app mantém o último valor lido (ou simplesmente não mostra o bloco) e continua funcionando com os dados locais.
-- **Grok** só atualiza o percentual quando o CLI roda; o painel mostra "atualizado há X" com base no último evento.
-- **OpenCode** não calcula custo para todas as mensagens (aquelas sem `cost` entram com custo 0, mas os tokens contam).
+- **Command Code (plan limits)** uses the CLI's internal API — it is an `alpha` endpoint with no public contract and can change without notice. Limits are fetched at most every 5 minutes; if the request fails the app keeps the last known values (or simply hides that block) and keeps working with local data.
+- **Grok** only refreshes the percentage when the CLI runs; the panel shows "updated X ago" based on the latest event.
+- **OpenCode** does not compute a cost for every message (messages without `cost` count as $0, but their tokens still count).
 
-## Comportamento
+## Behavior
 
-- O título do tray é atualizado a cada **60s** e o painel recebe o novo snapshot por evento.
-- Clique no ícone abre/fecha o painel; ele é posicionado logo abaixo do ícone e fecha ao perder o foco (Esc também fecha).
-- O ícone não tem menu nativo: no macOS um menu anexado ao status item abriria em qualquer clique e impediria o popover, então **Atualizar agora** e **sair** ficam no próprio painel.
-- O snapshot inteiro é recalculado a cada ciclo: Command Code lê os transcripts (~90 arquivos), Grok lê o log do CLI e OpenCode roda um `SELECT` somente-leitura na tabela `message`.
-- Se um CLI não estiver instalado, o card mostra "não encontrado" e o título do tray mostra `–` naquela posição.
+- The tray title refreshes every **60s** and the panel receives each new snapshot through an event.
+- Clicking the icon toggles the panel; it is positioned right below the icon and hides when it loses focus (Esc also closes it).
+- The icon has no native menu: on macOS a menu attached to the status item would open on any click and block the popover, so **Refresh** and **Quit** live inside the panel.
+- The whole snapshot is recomputed on every cycle: Command Code reads the transcripts (~90 files), Grok reads the CLI log and OpenCode runs a read-only `SELECT` on the `message` table.
+- If a CLI is not installed, its card shows "not found" and the tray title shows `–` in that slot.
 
-## Desenvolvimento
+## Development
 
 ```bash
-npm install          # o projeto tem .npmrc com include=dev (seu npm global tem omit=dev)
-npm run tauri dev    # app rodando na barra de menu (vite na porta 1421)
-cargo test           # testes Rust (parsers, janelas de tempo, título do tray) — em src-tauri/
-cargo test -- --ignored --nocapture   # smoke test contra os dados reais da máquina
-npm test             # testes do frontend (Vitest)
+npm install          # the repo ships .npmrc with include=dev so devDependencies are always installed
+npm run tauri dev    # app running in the menu bar (vite on port 1421)
+cargo test           # Rust tests (parsers, time windows, tray title) — run inside src-tauri/
+cargo test -- --ignored --nocapture   # smoke test against the real data on this machine
+npm test             # frontend tests (Vitest)
 ```
 
-A porta 1421 é usada no dev porque a 1420 está ocupada por outro projeto (video-editor). A janela precisa da capability `core:default` em `src-tauri/capabilities/default.json` para usar `listen`/`invoke`.
+Port 1421 is used for dev because 1420 is taken by another local project. The window needs the `core:default` capability in `src-tauri/capabilities/default.json` to use `listen`/`invoke`.
 
-## Qualidade (prettier, testes e CI)
+## Quality (prettier, tests and CI)
 
-Nada roda "sempre": o pre-commit e o CI só executam o que o diff toca.
+Nothing runs "always": both the pre-commit hook and CI only execute what the diff touches.
 
-- `npm run format` formata tudo com prettier (`npm run format:check` só verifica).
-- **pre-commit** em `.githooks/pre-commit`, ativado automaticamente pelo `npm install` (script `prepare` que aponta `core.hooksPath`):
-  - `prettier --check` apenas nos arquivos do commit;
-  - testes do frontend (vitest) só quando algo em `src/` ou nas configs muda;
-  - `cargo test --release` só quando `src-tauri/**` muda.
-  - Para pular de vez: `SKIP_PRECOMMIT=1 git commit ...` (ou `git commit --no-verify`).
-- **CI** em dois workflows com filtro de paths:
-  - `.github/workflows/frontend.yml` (ubuntu): prettier, `tsc --noEmit` e vitest — dispara com mudanças em `src/**` ou nas configs de build;
-  - `.github/workflows/rust.yml` (macOS, com cache de cargo): `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings` e `cargo test` — dispara só com mudanças em `src-tauri/**`.
-  - Ou seja: mudança só de README não roda CI, e mudança de frontend não paga o job Rust de ~6 min.
+- `npm run format` formats everything with prettier (`npm run format:check` only verifies).
+- **pre-commit** in `.githooks/pre-commit`, installed automatically by `npm install` (a `prepare` script sets `core.hooksPath`):
+  - `prettier --check` only on the files in the commit;
+  - frontend tests (vitest) only when something under `src/` or in the build configs changes;
+  - `cargo test --release` only when `src-tauri/**` changes.
+  - To skip everything: `SKIP_PRECOMMIT=1 git commit ...` (or `git commit --no-verify`).
+- **CI** is split into two path-filtered workflows:
+  - `.github/workflows/frontend.yml` (ubuntu): prettier, `tsc --noEmit` and vitest — triggers on changes to `src/**` or the build configs;
+  - `.github/workflows/rust.yml` (macOS, with cargo caching): `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` — triggers only on changes to `src-tauri/**`.
+  - In other words: a README-only change runs no CI, and a frontend change never pays for the ~1-6 min Rust job.
 
-Para regenerar os ícones (fonte desenhada em `scripts/generate-icons.mjs`):
+To regenerate the icons (drawn in `scripts/generate-icons.mjs`):
 
 ```bash
 node scripts/generate-icons.mjs
 npm run tauri -- icon src-tauri/icons/source.png
 ```
 
-## Build e instalação
+## Build and install
 
 ```bash
 npm run tauri build
 cp -R "src-tauri/target/release/bundle/macos/Code Usage.app" /Applications/
 ```
 
-O app roda sem ícone no Dock (`ActivationPolicy::Accessory`); para sair, use o menu do ícone → **Sair**. Para iniciar no login, adicione em Ajustes do Sistema → Geral → Itens de Login.
+The app runs with no Dock icon (`ActivationPolicy::Accessory`); to quit, use the **Sair** button in the panel footer. To launch it at login, add it under System Settings → General → Login Items.
 
-## Arquitetura
+## Architecture
 
-- `src-tauri/src/usage/` — parsers puros e testáveis (`commandcode.rs`, `grok.rs`, `opencode.rs`), janelas de tempo (`window.rs`) e formatação do título (`tray_title.rs`)
-- `src-tauri/src/tray.rs` — ícone da barra, menu e posicionamento do popover
-- `src-tauri/src/refresh.rs` — recálculo a cada 60s + evento para o painel
-- `src/` — painel em TypeScript puro (Vite), com helpers de formatação cobertos por Vitest
+- `src-tauri/src/usage/` — pure, testable parsers (`commandcode.rs`, `grok.rs`, `opencode.rs`), time windows (`window.rs`) and tray title formatting (`tray_title.rs`)
+- `src-tauri/src/tray.rs` — menu bar icon and popover positioning
+- `src-tauri/src/refresh.rs` — 60s recompute loop plus the event sent to the panel
+- `src/` — the panel in plain TypeScript (Vite), with formatting helpers covered by Vitest
