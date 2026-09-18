@@ -1,31 +1,23 @@
-name: CI
+name: Rust
 
 on:
   push:
     branches: [main]
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/rust.yml"
   pull_request:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/rust.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: rust-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  frontend:
-    name: Frontend (prettier, tipos, testes)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run format:check
-      - run: npx tsc --noEmit
-      - run: npm test
-
   rust:
-    name: Rust (fmt, clippy, testes)
+    name: fmt, clippy e testes
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,5 +42,5 @@ jobs:
         working-directory: src-tauri
       - run: cargo clippy --all-targets -- -D warnings
         working-directory: src-tauri
-      - run: cargo test --release
+      - run: cargo test
         working-directory: src-tauri

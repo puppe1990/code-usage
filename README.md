@@ -1,6 +1,7 @@
 # Code Usage
 
-[![CI](https://github.com/puppe1990/code-usage/actions/workflows/ci.yml/badge.svg)](https://github.com/puppe1990/code-usage/actions/workflows/ci.yml)
+[![Frontend](https://github.com/puppe1990/code-usage/actions/workflows/frontend.yml/badge.svg)](https://github.com/puppe1990/code-usage/actions/workflows/frontend.yml)
+[![Rust](https://github.com/puppe1990/code-usage/actions/workflows/rust.yml/badge.svg)](https://github.com/puppe1990/code-usage/actions/workflows/rust.yml)
 
 App de barra de menu (macOS) que mostra o usage do **Command Code**, **Grok** e **OpenCode** em um só lugar.
 
@@ -47,9 +48,18 @@ A porta 1421 é usada no dev porque a 1420 está ocupada por outro projeto (vide
 
 ## Qualidade (prettier, testes e CI)
 
+Nada roda "sempre": o pre-commit e o CI só executam o que o diff toca.
+
 - `npm run format` formata tudo com prettier (`npm run format:check` só verifica).
-- **pre-commit** em `.githooks/pre-commit`, ativado automaticamente pelo `npm install` (script `prepare` que aponta `core.hooksPath`): roda `prettier --check`, os testes do frontend e `cargo test --release`. Para pular numa emergência: `git commit --no-verify`.
-- **CI** em `.github/workflows/ci.yml`: job de frontend no ubuntu (prettier, `tsc --noEmit`, vitest) e job de Rust no macOS (`cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --release`).
+- **pre-commit** em `.githooks/pre-commit`, ativado automaticamente pelo `npm install` (script `prepare` que aponta `core.hooksPath`):
+  - `prettier --check` apenas nos arquivos do commit;
+  - testes do frontend (vitest) só quando algo em `src/` ou nas configs muda;
+  - `cargo test --release` só quando `src-tauri/**` muda.
+  - Para pular de vez: `SKIP_PRECOMMIT=1 git commit ...` (ou `git commit --no-verify`).
+- **CI** em dois workflows com filtro de paths:
+  - `.github/workflows/frontend.yml` (ubuntu): prettier, `tsc --noEmit` e vitest — dispara com mudanças em `src/**` ou nas configs de build;
+  - `.github/workflows/rust.yml` (macOS, com cache de cargo): `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings` e `cargo test` — dispara só com mudanças em `src-tauri/**`.
+  - Ou seja: mudança só de README não roda CI, e mudança de frontend não paga o job Rust de ~6 min.
 
 Para regenerar os ícones (fonte desenhada em `scripts/generate-icons.mjs`):
 
