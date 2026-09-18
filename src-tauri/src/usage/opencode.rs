@@ -1,3 +1,6 @@
+//! OpenCode SQLite database (`~/.local/share/opencode/opencode.db`, opened read-only): the
+//! `message` table holds a JSON payload with `cost` and `tokens` per message.
+
 use super::{CollectError, TokenTotals, UsageRecord};
 use chrono::{DateTime, TimeZone, Utc};
 use rusqlite::{Connection, OpenFlags};
@@ -64,6 +67,7 @@ fn open_read_only(path: &Path) -> Result<Connection, CollectError> {
         .map_err(|error| CollectError::Failed(format!("{}: {error}", path.display())))
 }
 
+/// Reads messages newer than `since` from the database into one record list.
 pub fn collect(db: &Path, since: DateTime<Utc>) -> Result<Vec<UsageRecord>, CollectError> {
     if !db.exists() {
         return Err(CollectError::NotFound(db.display().to_string()));

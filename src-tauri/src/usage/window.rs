@@ -1,3 +1,5 @@
+//! Buckets usage records into the today / 7 days / 30 days windows (day starts at local midnight).
+
 use super::{UsageRecord, UsageWindow};
 use chrono::{DateTime, Duration, Local, TimeZone, Utc};
 
@@ -8,6 +10,7 @@ pub struct Windows {
     pub last_30d: UsageWindow,
 }
 
+/// Local midnight of `now`, expressed in UTC (records are stored in UTC).
 pub fn start_of_day(now: DateTime<Local>) -> DateTime<Utc> {
     let naive = now
         .date_naive()
@@ -20,6 +23,7 @@ pub fn start_of_day(now: DateTime<Local>) -> DateTime<Utc> {
         .unwrap_or_else(|| (now - Duration::hours(24)).with_timezone(&Utc))
 }
 
+/// Sums records into the today / 7 days / 30 days windows ending at `now`.
 pub fn summarize(records: &[UsageRecord], now: DateTime<Local>) -> Windows {
     let today_start = start_of_day(now);
     let week_start = today_start - Duration::days(6);

@@ -1,3 +1,6 @@
+//! OpenCode Go plan limits from `opencode.ai/zen/go/v1/usage`, authenticated with the
+//! `opencode-go` key from `~/.local/share/opencode/auth.json` and cached for 5 minutes.
+
 use super::{CollectError, OpenCodeGoLimits, OpenCodeGoWindow};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -76,13 +79,20 @@ fn window(value: Option<&Value>) -> Option<OpenCodeGoWindow> {
     })
 }
 
+/// Reads the rolling / weekly / monthly windows out of one usage payload.
 pub fn parse_usage(body: &str, now: DateTime<Utc>) -> Result<OpenCodeGoLimits, CollectError> {
     let payload: Value = serde_json::from_str(body)
         .map_err(|error| CollectError::Failed(format!("zen/go/usage inválido: {error}")))?;
     let usage = payload
         .get("usage")
         .filter(|usage| !usage.is_null())
-        .ok_or_else(|| CollectError::Failed("resposta sem usage".to_string()))?;
+        .ok_or_else(|| {
+            let keys = payload
+                .as_object()
+                .map(|object| object.keys().cloned().collect::<Vec<_>>())
+                .unwrap_or_default();
+            CollectError::Failed(format!("zen/go/usage sem \"usage\" (chaves: {keys:?})"))
+        })?;
 
     Ok(OpenCodeGoLimits {
         rolling: window(usage.get("rolling")),
@@ -92,6 +102,7 @@ pub fn parse_usage(body: &str, now: DateTime<Utc>) -> Result<OpenCodeGoLimits, C
     })
 }
 
+/// Fetches the usage endpoint and parses it (see `parse_usage`).
 pub fn fetch_limits(
     url: &str,
     api_key: &str,
@@ -131,6 +142,7 @@ fn fresh_cache() -> Option<OpenCodeGoLimits> {
     })
 }
 
+/// Last fetched limits, however old; `None` before the first successful fetch.
 pub fn cached_limits() -> Option<OpenCodeGoLimits> {
     CACHE
         .lock()
@@ -138,6 +150,7 @@ pub fn cached_limits() -> Option<OpenCodeGoLimits> {
         .and_then(|guard| guard.as_ref().map(|cached| cached.limits.clone()))
 }
 
+/// Refreshes when the 5-minute cache is stale, keeping the last value on failure.
 pub fn refresh_cache() -> Option<OpenCodeGoLimits> {
     if let Some(limits) = fresh_cache() {
         return Some(limits);

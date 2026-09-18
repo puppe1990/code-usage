@@ -1,5 +1,9 @@
+//! One `ProviderUsage` per CLI, built from the local transcripts/logs/database plus the
+//! plan-limit caches. `snapshot` is the single entry point the rest of the app calls.
+
 pub mod commandcode;
 pub mod commandcode_api;
+mod commandcode_limits;
 pub mod grok;
 pub mod opencode;
 pub mod opencode_go;
@@ -182,6 +186,7 @@ pub struct ProviderUsage {
 }
 
 impl ProviderUsage {
+    /// Card with the local windows plus whatever plan limits were cached for this harness.
     pub fn from_records(
         provider: Provider,
         records: &[UsageRecord],
@@ -202,6 +207,7 @@ impl ProviderUsage {
         }
     }
 
+    /// Card for a CLI that failed or is not installed; the error becomes the status notice.
     pub fn unavailable(provider: Provider, error: CollectError) -> Self {
         Self {
             provider,
@@ -224,25 +230,39 @@ pub struct UsageSnapshot {
     pub providers: Vec<ProviderUsage>,
 }
 
+/// Collects every harness into the snapshot the UI renders, one failure isolated per provider.
 pub fn snapshot(now: DateTime<Local>) -> UsageSnapshot {
-    let mut providers = Vec::with_capacity(3);
+    UsageSnapshot {
+        generated_at: now.with_timezone(&Utc),
+        providers: vec![
+            command_code_usage(now),
+            grok_usage(now),
+            open_code_usage(now),
+        ],
+    }
+}
 
-    let command_code_limits = commandcode_api::cached_limits();
-    providers.push(match commandcode::collect(&commandcode::root_path()) {
+/// Command Code card: transcripts on disk plus the cached plan limits.
+fn command_code_usage(now: DateTime<Local>) -> ProviderUsage {
+    match commandcode::collect(&commandcode::root_path()) {
         Ok(records) => ProviderUsage::from_records(
             Provider::CommandCode,
             &records,
             now,
             ProviderLimits {
-                command_code: command_code_limits,
+                command_code: commandcode_api::cached_limits(),
                 ..ProviderLimits::default()
             },
         ),
         Err(error) => ProviderUsage::unavailable(Provider::CommandCode, error),
-    });
+    }
+}
 
+/// Grok card: the CLI log (records and the weekly limits live in the same file).
+fn grok_usage(now: DateTime<Local>) -> ProviderUsage {
     let since = window::start_of_day(now) - Duration::days(31);
-    providers.push(match grok::collect(&grok::log_path(), since) {
+
+    match grok::collect(&grok::log_path(), since) {
         Ok(data) => ProviderUsage::from_records(
             Provider::Grok,
             &data.records,
@@ -253,25 +273,24 @@ pub fn snapshot(now: DateTime<Local>) -> UsageSnapshot {
             },
         ),
         Err(error) => ProviderUsage::unavailable(Provider::Grok, error),
-    });
+    }
+}
 
-    let open_code_go_limits = opencode_go::cached_limits();
-    providers.push(match opencode::collect(&opencode::db_path(), since) {
+/// OpenCode card: the local database plus the cached Go plan limits.
+fn open_code_usage(now: DateTime<Local>) -> ProviderUsage {
+    let since = window::start_of_day(now) - Duration::days(31);
+
+    match opencode::collect(&opencode::db_path(), since) {
         Ok(records) => ProviderUsage::from_records(
             Provider::OpenCode,
             &records,
             now,
             ProviderLimits {
-                open_code_go: open_code_go_limits,
+                open_code_go: opencode_go::cached_limits(),
                 ..ProviderLimits::default()
             },
         ),
         Err(error) => ProviderUsage::unavailable(Provider::OpenCode, error),
-    });
-
-    UsageSnapshot {
-        generated_at: Utc::now(),
-        providers,
     }
 }
 
