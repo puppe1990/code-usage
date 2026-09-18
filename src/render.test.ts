@@ -145,6 +145,29 @@ describe("panelHtml", () => {
     expect(html).toContain("77% do período semanal · SuperGrok");
   });
 
+  it("renders a star for every favoriteable metric", () => {
+    const html = panelHtml(snapshot, []);
+
+    for (const id of [
+      "grokWeekly",
+      "commandCodePlan",
+      "commandCodeTodayCost",
+      "openCodeGoWeekly",
+      "openCodeTodayCost",
+    ]) {
+      expect(html).toContain(`data-favorite="${id}"`);
+    }
+  });
+
+  it("marks the favorited metrics with an active star", () => {
+    const html = panelHtml(snapshot, ["grokWeekly", "openCodeGoWeekly"]);
+
+    expect(html).toContain('class="star active" data-favorite="grokWeekly"');
+    expect(html).toContain('class="star active" data-favorite="openCodeGoWeekly"');
+    expect(html).toContain('class="star" data-favorite="commandCodeTodayCost"');
+    expect(html).toContain('class="star" data-favorite="commandCodePlan"');
+  });
+
   it("renders a notice when a provider is missing", () => {
     const missing: UsageSnapshot = {
       generatedAt: new Date().toISOString(),

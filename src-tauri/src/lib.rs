@@ -1,14 +1,17 @@
 mod commands;
+mod preferences;
 mod refresh;
 mod tray;
 pub mod usage;
 
+use preferences::{Favorite, Preferences};
 use std::sync::Mutex;
 use std::time::Instant;
 use tauri::{Manager, WindowEvent};
 
 pub struct AppState {
     pub snapshot: Mutex<Option<usage::UsageSnapshot>>,
+    pub preferences: Mutex<Preferences>,
     pub shown_at: Mutex<Option<Instant>>,
 }
 
@@ -16,6 +19,7 @@ impl Default for AppState {
     fn default() -> Self {
         Self {
             snapshot: Mutex::new(None),
+            preferences: Mutex::new(Preferences::load()),
             shown_at: Mutex::new(None),
         }
     }
@@ -26,6 +30,13 @@ impl AppState {
         if let Ok(mut guard) = self.shown_at.lock() {
             *guard = Some(Instant::now());
         }
+    }
+
+    pub fn favorites(&self) -> Vec<Favorite> {
+        self.preferences
+            .lock()
+            .map(|preferences| preferences.favorites.clone())
+            .unwrap_or_default()
     }
 
     fn was_just_shown(&self, threshold: std::time::Duration) -> bool {
@@ -43,6 +54,8 @@ pub fn run() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::get_usage,
+            commands::get_favorites,
+            commands::set_favorites,
             commands::refresh_now,
             commands::hide_panel,
             commands::quit_app

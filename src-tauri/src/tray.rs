@@ -1,3 +1,4 @@
+use crate::preferences::Favorite;
 use crate::usage::{tray_title, UsageSnapshot};
 use tauri::image::Image;
 use tauri::tray::{MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -6,8 +7,8 @@ use tauri::{AppHandle, LogicalPosition, Manager, Position, Rect, Size, WebviewWi
 pub const TRAY_ID: &str = "usage-tray";
 pub const WINDOW_LABEL: &str = "main";
 
-pub fn title_for(snapshot: &UsageSnapshot) -> String {
-    tray_title::format_title(snapshot)
+pub fn title_for(snapshot: &UsageSnapshot, favorites: &[Favorite]) -> String {
+    tray_title::format_title(snapshot, favorites)
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
