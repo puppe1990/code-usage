@@ -55,11 +55,15 @@ function star(favorite: FavoriteId, selected: boolean): string {
 }
 
 function windowRow(label: string, percent: number, resetAt: string): string {
+  return windowRowDetail(label, percent, formatResetCountdown(resetAt));
+}
+
+function windowRowDetail(label: string, percent: number, detail: string): string {
   return `
     <div class="window-row">
       <span class="window-label">${label}</span>
       ${limitBar(percent, true)}
-      <span class="window-meta">${formatPercent(percent)} · ${formatResetCountdown(resetAt)}</span>
+      <span class="window-meta">${formatPercent(percent)} · ${detail}</span>
     </div>`;
 }
 
@@ -113,9 +117,23 @@ function commandCodeSection(limits: CommandCodeLimits): string {
     limits.periodBasis === "billing-period" ? "requests este mês" : "requests no período"
   }`;
 
+  const principal = limits.weekly
+    ? `
+      ${limitBar(limits.weekly.percentUsed)}
+      <div class="limit-meta">
+        <span>${formatPercent(limits.weekly.percentUsed)} do período semanal</span>
+        <span>${formatResetCountdown(limits.weekly.resetAt)}</span>
+      </div>`
+    : `
+      ${limitBar(limits.usagePercent)}
+      <div class="limit-meta">
+        <span>${formatPercent(limits.usagePercent)} usado</span>
+        <span>${requests}</span>
+      </div>`;
+
   const windows = [
     limits.fiveHour ? windowRow("5h", limits.fiveHour.percentUsed, limits.fiveHour.resetAt) : "",
-    limits.weekly ? windowRow("semanal", limits.weekly.percentUsed, limits.weekly.resetAt) : "",
+    limits.weekly ? windowRowDetail("mensal", limits.usagePercent, requests) : "",
   ].join("");
 
   return `
@@ -124,11 +142,7 @@ function commandCodeSection(limits: CommandCodeLimits): string {
         ${badge}
         <span>${renew}</span>
       </div>
-      ${limitBar(limits.usagePercent)}
-      <div class="limit-meta">
-        <span>${formatPercent(limits.usagePercent)} usado</span>
-        <span>${requests}</span>
-      </div>
+      ${principal}
       ${windows}
       <div class="limit-foot">saldo ${limits.creditsRemaining.toFixed(1)} de ${limits.creditsTotal.toFixed(0)} créditos</div>
     </div>`;
@@ -145,7 +159,7 @@ function openCodeGoSection(limits: OpenCodeGoLimits): string {
     : "";
 
   const secondary = [
-    limits.rolling ? windowRow("rolling", limits.rolling.percent, limits.rolling.resetsAt) : "",
+    limits.rolling ? windowRow("5h", limits.rolling.percent, limits.rolling.resetsAt) : "",
     limits.monthly ? windowRow("mensal", limits.monthly.percent, limits.monthly.resetsAt) : "",
   ].join("");
 
