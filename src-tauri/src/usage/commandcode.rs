@@ -1,3 +1,6 @@
+//! Command Code transcripts: `~/.commandcode/projects/<slug>/<session>.jsonl` lines carrying
+//! `usage.costUsd` and tokens.
+
 use super::{CollectError, TokenTotals, UsageRecord};
 use chrono::{DateTime, Utc};
 use std::fs::{self, File};
@@ -61,6 +64,7 @@ pub fn parse_line(line: &str) -> Option<UsageRecord> {
     })
 }
 
+/// Reads every transcript under `root`, newest files first, into one record list.
 pub fn collect(root: &Path) -> Result<Vec<UsageRecord>, CollectError> {
     if !root.exists() {
         return Err(CollectError::NotFound(root.display().to_string()));

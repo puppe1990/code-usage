@@ -1,3 +1,6 @@
+//! The 60s recompute loop: rebuilds the snapshot, updates the tray title and mark, and emits
+//! `usage-updated` to the panel.
+
 use crate::tray;
 use crate::usage::{self, UsageSnapshot};
 use crate::AppState;
@@ -7,6 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 
+/// Stores the snapshot, updates the tray and notifies the panel.
 pub fn publish(app: &AppHandle, snapshot: &UsageSnapshot) {
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(mut guard) = state.snapshot.lock() {
@@ -19,6 +23,7 @@ pub fn publish(app: &AppHandle, snapshot: &UsageSnapshot) {
     let _ = app.emit("usage-updated", snapshot);
 }
 
+/// Recomputes, publishes, then refreshes the plan-limit caches and publishes again on change.
 pub fn refresh_and_publish(app: &AppHandle) {
     let snapshot = usage::snapshot(Local::now());
     publish(app, &snapshot);
@@ -41,6 +46,7 @@ pub fn refresh_and_publish(app: &AppHandle) {
     }
 }
 
+/// Starts the background loop that recomputes every `REFRESH_INTERVAL`.
 pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || loop {
         refresh_and_publish(&app);

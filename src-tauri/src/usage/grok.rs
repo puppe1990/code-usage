@@ -1,3 +1,6 @@
+//! Grok CLI log (`~/.grok/logs/unified.jsonl`): billing events carry the weekly percentage,
+//! `shell.turn.inference_done` carries tokens.
+
 use super::{CollectError, GrokLimits, TokenTotals, UsageRecord};
 use chrono::{DateTime, Utc};
 use std::fs::File;
@@ -38,60 +41,62 @@ pub fn parse_line(line: &str) -> Option<GrokEvent> {
         .with_timezone(&Utc);
 
     match message {
-        "billing: fetched credits config" => {
-            let context = value.get("ctx")?;
-            let config = context.get("config")?;
-            let period = config.get("currentPeriod")?;
-
-            Some(GrokEvent::Billing(GrokLimits {
-                credit_usage_percent: config.get("creditUsagePercent")?.as_f64()?,
-                period_start: DateTime::parse_from_rfc3339(period.get("start")?.as_str()?)
-                    .ok()?
-                    .with_timezone(&Utc),
-                period_end: DateTime::parse_from_rfc3339(period.get("end")?.as_str()?)
-                    .ok()?
-                    .with_timezone(&Utc),
-                tier: context
-                    .get("subscriptionTier")
-                    .and_then(|tier| tier.as_str())
-                    .map(str::to_string),
-                fetched_at: timestamp,
-            }))
-        }
-        "shell.turn.inference_done" => {
-            let context = value.get("ctx")?;
-            let prompt = context
-                .get("prompt_tokens")
-                .and_then(|value| value.as_u64())
-                .unwrap_or(0);
-            let cached = context
-                .get("cached_prompt_tokens")
-                .and_then(|value| value.as_u64())
-                .unwrap_or(0);
-            let completion = context
-                .get("completion_tokens")
-                .and_then(|value| value.as_u64())
-                .unwrap_or(0);
-
-            if prompt == 0 && completion == 0 {
-                return None;
-            }
-
-            Some(GrokEvent::Inference(UsageRecord {
-                timestamp,
-                tokens: TokenTotals {
-                    input: prompt.saturating_sub(cached),
-                    output: completion,
-                    cache_read: cached,
-                    ..TokenTotals::default()
-                },
-                cost_usd: 0.0,
-            }))
-        }
+        "billing: fetched credits config" => billing_event(value.get("ctx")?, timestamp),
+        "shell.turn.inference_done" => inference_event(value.get("ctx")?, timestamp),
         _ => None,
     }
 }
 
+/// `billing: fetched credits config` carries the weekly percentage and its period.
+fn billing_event(context: &serde_json::Value, timestamp: DateTime<Utc>) -> Option<GrokEvent> {
+    let config = context.get("config")?;
+    let period = config.get("currentPeriod")?;
+
+    Some(GrokEvent::Billing(GrokLimits {
+        credit_usage_percent: config.get("creditUsagePercent")?.as_f64()?,
+        period_start: DateTime::parse_from_rfc3339(period.get("start")?.as_str()?)
+            .ok()?
+            .with_timezone(&Utc),
+        period_end: DateTime::parse_from_rfc3339(period.get("end")?.as_str()?)
+            .ok()?
+            .with_timezone(&Utc),
+        tier: context
+            .get("subscriptionTier")
+            .and_then(|tier| tier.as_str())
+            .map(str::to_string),
+        fetched_at: timestamp,
+    }))
+}
+
+/// `shell.turn.inference_done` carries the token counts of one turn.
+fn inference_event(context: &serde_json::Value, timestamp: DateTime<Utc>) -> Option<GrokEvent> {
+    let count = |key: &str| {
+        context
+            .get(key)
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0)
+    };
+    let prompt = count("prompt_tokens");
+    let cached = count("cached_prompt_tokens");
+    let completion = count("completion_tokens");
+
+    if prompt == 0 && completion == 0 {
+        return None;
+    }
+
+    Some(GrokEvent::Inference(UsageRecord {
+        timestamp,
+        tokens: TokenTotals {
+            input: prompt.saturating_sub(cached),
+            output: completion,
+            cache_read: cached,
+            ..TokenTotals::default()
+        },
+        cost_usd: 0.0,
+    }))
+}
+
+/// Reads the CLI log from `since` on, into records plus the latest billing limits.
 pub fn collect(path: &Path, since: DateTime<Utc>) -> Result<GrokData, CollectError> {
     if !path.exists() {
         return Err(CollectError::NotFound(path.display().to_string()));

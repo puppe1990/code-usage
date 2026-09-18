@@ -1,3 +1,6 @@
+//! The single star selection, persisted to `~/Library/Application Support/code-usage/preferences.json`
+//! (override with `CODE_USAGE_CONFIG`).
+
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -62,6 +65,7 @@ pub fn path() -> PathBuf {
         .unwrap_or_else(|_| default_path())
 }
 
+/// Reads the preferences file, falling back to the defaults for a missing or broken file.
 pub fn load(path: &Path) -> Preferences {
     let Ok(content) = std::fs::read_to_string(path) else {
         return Preferences::default();
@@ -98,6 +102,7 @@ fn parse_favorite(id: &str) -> Option<Favorite> {
     serde_json::from_value::<Favorite>(serde_json::Value::String(id.to_string())).ok()
 }
 
+/// Writes the preferences file, creating parent directories as needed.
 pub fn save(path: &Path, preferences: &Preferences) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;

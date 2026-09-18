@@ -189,6 +189,7 @@ function card(
     </section>`;
 }
 
+/** Renders the whole panel: one collapsible card per harness. */
 export function panelHtml(
   snapshot: UsageSnapshot,
   favorite: FavoriteId | null = null,
@@ -218,6 +219,7 @@ export function panelHtml(
     </div>`;
 }
 
+/** Renders the panel into `root`, restoring the caller's star and expanded cards. */
 export function renderPanel(
   root: HTMLElement,
   snapshot: UsageSnapshot,

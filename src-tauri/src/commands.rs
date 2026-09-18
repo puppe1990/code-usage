@@ -1,3 +1,5 @@
+//! IPC surface called by the panel (`invoke` in src/main.ts).
+
 use crate::preferences::{Favorite, Preferences};
 use crate::refresh;
 use crate::tray;
@@ -19,6 +21,7 @@ pub fn get_autostart(app: AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
+/// Enables/disables the login item and returns the state the system reports afterwards.
 pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
     let autolaunch = app.autolaunch();
 
@@ -38,6 +41,7 @@ pub fn get_favorite(state: State<'_, AppState>) -> Option<Favorite> {
 }
 
 #[tauri::command]
+/// Saves the star (or clears it with `None`), then syncs the tray title and mark.
 pub fn set_favorite(
     app: AppHandle,
     favorite: Option<Favorite>,
@@ -62,6 +66,7 @@ pub fn set_favorite(
 }
 
 #[tauri::command]
+/// Kicks a recompute on a worker thread and returns immediately.
 pub async fn refresh_now(app: AppHandle) -> Result<(), String> {
     let handle = app.clone();
     std::thread::spawn(move || {

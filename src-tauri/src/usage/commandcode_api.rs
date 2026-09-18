@@ -1,5 +1,6 @@
-use super::{CollectError, CommandCodeLimits, WindowLimit};
-use chrono::{DateTime, TimeZone, Utc};
+use super::commandcode_limits::parse_limits;
+use super::{CollectError, CommandCodeLimits};
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -9,17 +10,6 @@ pub const DEFAULT_BASE_URL: &str = "https://api.commandcode.ai";
 pub const CACHE_TTL: Duration = Duration::from_secs(300);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-const PLAN_TABLE: &[(&str, &str, f64)] = &[
-    ("individual-ultra", "Ultra", 300.0),
-    ("individual-max", "Max", 150.0),
-    ("individual-pro-v1", "Pro", 80.0),
-    ("individual-goat", "GOAT", 70.0),
-    ("teams-pro", "Teams Pro", 40.0),
-    ("individual-pro", "Pro", 30.0),
-    ("individual-provider", "Provider", 15.0),
-    ("individual-go", "Go", 10.0),
-];
-
 #[derive(Debug, Clone)]
 struct CachedLimits {
     fetched_at: Instant,
@@ -27,20 +17,6 @@ struct CachedLimits {
 }
 
 static CACHE: Mutex<Option<CachedLimits>> = Mutex::new(None);
-
-pub fn plan_name(plan_id: &str) -> Option<&'static str> {
-    PLAN_TABLE
-        .iter()
-        .find(|(id, _, _)| *id == plan_id)
-        .map(|(_, name, _)| *name)
-}
-
-pub fn plan_monthly_credits(plan_id: &str) -> Option<f64> {
-    PLAN_TABLE
-        .iter()
-        .find(|(id, _, _)| *id == plan_id)
-        .map(|(_, _, credits)| *credits)
-}
 
 pub fn default_auth_path() -> PathBuf {
     dirs::home_dir()
@@ -75,180 +51,6 @@ pub fn read_token(path: &Path) -> Result<String, CollectError> {
         .filter(|token| !token.is_empty())
         .map(str::to_string)
         .ok_or_else(|| CollectError::Failed(format!("{}: sem apiKey", path.display())))
-}
-
-pub fn usage_percent(
-    plan_credits: Option<f64>,
-    status: Option<&str>,
-    monthly_remaining: f64,
-    purchased: f64,
-    free: f64,
-    total_spent: f64,
-) -> f64 {
-    let monthly = monthly_remaining.max(0.0);
-    let purchased = purchased.max(0.0);
-    let free = free.max(0.0);
-    let remaining = monthly + purchased + free;
-
-    let active_plan_credits = if status == Some("active") {
-        plan_credits
-    } else {
-        None
-    };
-
-    let total_pool = match active_plan_credits {
-        Some(credits) => credits.max(monthly) + purchased + free,
-        None => total_spent.max(0.0) + remaining,
-    };
-
-    if total_pool <= 0.0 {
-        return 0.0;
-    }
-
-    (((total_pool - remaining) / total_pool) * 100.0).clamp(0.0, 100.0)
-}
-
-fn window_limit(value: &Value) -> Option<WindowLimit> {
-    let used = value.get("used").and_then(|value| value.as_f64())?;
-    let cap = value
-        .get("cap")
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0);
-    let reset_at = Utc
-        .timestamp_millis_opt(value.get("resetAt")?.as_i64()?)
-        .single()?;
-
-    Some(WindowLimit {
-        percent_used: if cap > 0.0 {
-            (used / cap * 100.0).clamp(0.0, 100.0)
-        } else {
-            0.0
-        },
-        used,
-        cap,
-        reset_at,
-    })
-}
-
-fn parse_credits_total(
-    status: Option<&str>,
-    plan_credits: Option<f64>,
-    monthly_remaining: f64,
-    purchased: f64,
-    free: f64,
-    total_spent: f64,
-) -> f64 {
-    let monthly = monthly_remaining.max(0.0);
-    match (status, plan_credits) {
-        (Some("active"), Some(credits)) => {
-            credits.max(monthly) + purchased.max(0.0) + free.max(0.0)
-        }
-        _ => total_spent.max(0.0) + monthly + purchased.max(0.0) + free.max(0.0),
-    }
-}
-
-pub fn parse_limits(
-    summary: &str,
-    credits: &str,
-    subscription: &str,
-    now: DateTime<Utc>,
-) -> Result<CommandCodeLimits, CollectError> {
-    let summary: Value = serde_json::from_str(summary)
-        .map_err(|error| CollectError::Failed(format!("usage/summary inválido: {error}")))?;
-    let credits: Value = serde_json::from_str(credits)
-        .map_err(|error| CollectError::Failed(format!("billing/credits inválido: {error}")))?;
-    let subscription: Value = serde_json::from_str(subscription).map_err(|error| {
-        CollectError::Failed(format!("billing/subscriptions inválido: {error}"))
-    })?;
-
-    let credit_info = credits
-        .get("credits")
-        .filter(|value| !value.is_null())
-        .ok_or_else(|| CollectError::Failed("resposta de credits sem saldo".to_string()))?;
-
-    let monthly_remaining = credit_info
-        .get("monthlyCredits")
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0);
-    let purchased = credit_info
-        .get("purchasedCredits")
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0);
-    let free = credit_info
-        .get("freeCredits")
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0);
-
-    let subscription_data = subscription.get("data").filter(|value| !value.is_null());
-    let plan_id = subscription_data
-        .and_then(|value| value.get("planId"))
-        .and_then(|value| value.as_str())
-        .map(str::to_string);
-    let status = subscription_data
-        .and_then(|value| value.get("status"))
-        .and_then(|value| value.as_str())
-        .map(str::to_string);
-    let renews_at = subscription_data
-        .and_then(|value| value.get("currentPeriodEnd"))
-        .and_then(|value| value.as_str())
-        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
-        .map(|value| value.with_timezone(&Utc));
-
-    let total_spent = summary
-        .get("totalCost")
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0);
-    let requests_this_period = summary
-        .get("totalCount")
-        .and_then(|value| value.as_u64())
-        .unwrap_or(0);
-    let period_basis = summary
-        .get("periodBasis")
-        .and_then(|value| value.as_str())
-        .map(str::to_string);
-
-    let plan_credits = plan_id.as_deref().and_then(plan_monthly_credits);
-    let days_to_renew = renews_at.map(|end| {
-        (((end - now).num_milliseconds() as f64) / 86_400_000.0)
-            .ceil()
-            .max(0.0) as i64
-    });
-
-    let window_limits = credits.get("windowLimits").filter(|value| !value.is_null());
-
-    Ok(CommandCodeLimits {
-        plan: plan_id.as_deref().and_then(plan_name).map(str::to_string),
-        plan_id,
-        status: status.clone(),
-        usage_percent: usage_percent(
-            plan_credits,
-            status.as_deref(),
-            monthly_remaining,
-            purchased,
-            free,
-            total_spent,
-        ),
-        credits_total: parse_credits_total(
-            status.as_deref(),
-            plan_credits,
-            monthly_remaining,
-            purchased,
-            free,
-            total_spent,
-        ),
-        credits_remaining: monthly_remaining.max(0.0) + purchased.max(0.0) + free.max(0.0),
-        requests_this_period,
-        period_basis,
-        renews_at,
-        days_to_renew,
-        five_hour: window_limits
-            .and_then(|value| value.get("fiveHour"))
-            .and_then(window_limit),
-        weekly: window_limits
-            .and_then(|value| value.get("weekly"))
-            .and_then(window_limit),
-        fetched_at: now,
-    })
 }
 
 fn get_json(
@@ -348,85 +150,6 @@ mod tests {
             .join("commandcode-api")
             .join(name);
         fs::read_to_string(path).expect("fixture is readable")
-    }
-
-    fn fixed_now() -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(2026, 9, 17, 18, 0, 0)
-            .single()
-            .expect("valid timestamp")
-    }
-
-    #[test]
-    fn maps_plan_limits_and_renewal_from_api_payloads() {
-        let limits = parse_limits(
-            &fixture("summary.json"),
-            &fixture("credits.json"),
-            &fixture("subscription.json"),
-            fixed_now(),
-        )
-        .expect("payloads are parsed");
-
-        assert_eq!(limits.plan.as_deref(), Some("GOAT"));
-        assert_eq!(limits.plan_id.as_deref(), Some("individual-goat"));
-        assert_eq!(limits.status.as_deref(), Some("active"));
-        assert!((limits.usage_percent - 44.9347644314).abs() < 1e-6);
-        assert!((limits.credits_total - 70.0).abs() < 1e-9);
-        assert!((limits.credits_remaining - 38.5456648998).abs() < 1e-9);
-        assert_eq!(limits.requests_this_period, 7776);
-        assert_eq!(limits.period_basis.as_deref(), Some("billing-period"));
-        assert_eq!(limits.days_to_renew, Some(23));
-        assert_eq!(
-            limits.renews_at.map(|value| value.to_rfc3339()),
-            Some("2026-10-10T15:54:42+00:00".to_string())
-        );
-
-        let five_hour = limits.five_hour.expect("five hour window");
-        assert!((five_hour.percent_used - (0.433224008 / 14.0 * 100.0)).abs() < 1e-9);
-        assert_eq!(five_hour.reset_at.timestamp_millis(), 1789701545210);
-
-        let weekly = limits.weekly.expect("weekly window");
-        assert!((weekly.percent_used - (0.6025898049 / 35.0 * 100.0)).abs() < 1e-9);
-        assert_eq!(weekly.reset_at.timestamp_millis(), 1790266576342);
-    }
-
-    #[test]
-    fn falls_back_to_the_spent_pool_when_plan_is_inactive() {
-        let subscription = fixture("subscription.json").replace("\"active\"", "\"canceled\"");
-
-        let limits = parse_limits(
-            &fixture("summary.json"),
-            &fixture("credits.json"),
-            &subscription,
-            fixed_now(),
-        )
-        .expect("payloads are parsed");
-
-        assert_eq!(limits.status.as_deref(), Some("canceled"));
-        let pool = 34.1027526312 + 38.5456648998;
-        assert!((limits.credits_total - pool).abs() < 1e-9);
-        assert!((limits.usage_percent - (34.1027526312 / pool * 100.0)).abs() < 1e-9);
-    }
-
-    #[test]
-    fn rejects_payloads_without_credits() {
-        let error = parse_limits(
-            &fixture("summary.json"),
-            "{\"credits\":null}",
-            &fixture("subscription.json"),
-            fixed_now(),
-        )
-        .expect_err("credits are required");
-
-        assert!(matches!(error, CollectError::Failed(_)));
-    }
-
-    #[test]
-    fn maps_plan_ids_to_names_and_credits() {
-        assert_eq!(plan_name("individual-goat"), Some("GOAT"));
-        assert_eq!(plan_monthly_credits("individual-goat"), Some(70.0));
-        assert_eq!(plan_name("individual-max"), Some("Max"));
-        assert_eq!(plan_monthly_credits("teams-pro"), Some(40.0));
-        assert_eq!(plan_name("individual-unknown"), None);
     }
 
     #[test]

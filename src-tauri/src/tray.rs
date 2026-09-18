@@ -1,3 +1,5 @@
+//! Menu bar item: the mark and title of the selected harness, plus the popover placement.
+
 use crate::preferences::Favorite;
 use crate::usage::{tray_title, UsageSnapshot};
 use tauri::image::Image;

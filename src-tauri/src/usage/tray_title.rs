@@ -1,3 +1,6 @@
+//! The menu bar string: one harness at a time, showing the plan windows it has (`5h`, `W`, `M`)
+//! and falling back to today's cost (or `-`) when there is no window data.
+
 use super::{Provider, ProviderStatus, UsageSnapshot};
 use crate::preferences::Favorite;
 
@@ -26,59 +29,73 @@ fn provider(snapshot: &UsageSnapshot, provider: Provider) -> Option<&super::Prov
         .find(|usage| usage.provider == provider)
 }
 
+/// Grok exposes a single weekly window.
+fn grok_values(snapshot: &UsageSnapshot) -> Vec<String> {
+    provider(snapshot, Provider::Grok)
+        .filter(|usage| matches!(usage.status, ProviderStatus::Ok))
+        .and_then(|usage| usage.grok.as_ref())
+        .map(|limits| window_value("W", limits.credit_usage_percent))
+        .map_or_else(|| vec![placeholder()], |value| vec![value])
+}
+
+/// The billing period is monthly: that percentage is the plan usage the dashboard shows.
+fn command_code_values(snapshot: &UsageSnapshot) -> Vec<String> {
+    let windows = provider(snapshot, Provider::CommandCode)
+        .and_then(|usage| usage.command_code.as_ref())
+        .map(|limits| {
+            [
+                ("5h", limits.five_hour.as_ref()),
+                ("W", limits.weekly.as_ref()),
+            ]
+            .into_iter()
+            .filter_map(|(label, window)| {
+                window.map(|window| window_value(label, window.percent_used))
+            })
+            .chain(std::iter::once(window_value("M", limits.usage_percent)))
+            .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    fallback_to_today_cost(windows, snapshot, Provider::CommandCode)
+}
+
+/// OpenCode Go exposes rolling / weekly / monthly windows; only the ones it has are shown.
+fn open_code_values(snapshot: &UsageSnapshot) -> Vec<String> {
+    let windows = provider(snapshot, Provider::OpenCode)
+        .and_then(|usage| usage.open_code_go.as_ref())
+        .map(|limits| {
+            [
+                ("5h", limits.rolling.as_ref()),
+                ("W", limits.weekly.as_ref()),
+                ("M", limits.monthly.as_ref()),
+            ]
+            .into_iter()
+            .filter_map(|(label, window)| window.map(|window| window_value(label, window.percent)))
+            .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    fallback_to_today_cost(windows, snapshot, Provider::OpenCode)
+}
+
+/// A harness without window data shows today's cost instead.
+fn fallback_to_today_cost(
+    windows: Vec<String>,
+    snapshot: &UsageSnapshot,
+    kind: Provider,
+) -> Vec<String> {
+    if windows.is_empty() {
+        vec![today_cost(snapshot, kind)]
+    } else {
+        windows
+    }
+}
+
 fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> Vec<String> {
     match favorite {
-        Favorite::Grok => vec![provider(snapshot, Provider::Grok)
-            .filter(|usage| matches!(usage.status, ProviderStatus::Ok))
-            .and_then(|usage| usage.grok.as_ref())
-            .map(|limits| window_value("W", limits.credit_usage_percent))
-            .unwrap_or_else(placeholder)],
-        Favorite::CommandCode => {
-            let windows = provider(snapshot, Provider::CommandCode)
-                .and_then(|usage| usage.command_code.as_ref())
-                .map(|limits| {
-                    let mut values = Vec::new();
-                    if let Some(window) = limits.five_hour.as_ref() {
-                        values.push(window_value("5h", window.percent_used));
-                    }
-                    if let Some(window) = limits.weekly.as_ref() {
-                        values.push(window_value("W", window.percent_used));
-                    }
-                    // the billing period is monthly: this is the plan percentage the dashboard shows
-                    values.push(window_value("M", limits.usage_percent));
-                    values
-                })
-                .unwrap_or_default();
-
-            if windows.is_empty() {
-                vec![today_cost(snapshot, Provider::CommandCode)]
-            } else {
-                windows
-            }
-        }
-        Favorite::OpenCode => {
-            let windows = provider(snapshot, Provider::OpenCode)
-                .and_then(|usage| usage.open_code_go.as_ref())
-                .map(|limits| {
-                    [
-                        ("5h", limits.rolling.as_ref()),
-                        ("W", limits.weekly.as_ref()),
-                        ("M", limits.monthly.as_ref()),
-                    ]
-                    .into_iter()
-                    .filter_map(|(label, window)| {
-                        window.map(|window| window_value(label, window.percent))
-                    })
-                    .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
-            if windows.is_empty() {
-                vec![today_cost(snapshot, Provider::OpenCode)]
-            } else {
-                windows
-            }
-        }
+        Favorite::Grok => grok_values(snapshot),
+        Favorite::CommandCode => command_code_values(snapshot),
+        Favorite::OpenCode => open_code_values(snapshot),
     }
 }
 
@@ -91,6 +108,7 @@ fn today_cost(snapshot: &UsageSnapshot, kind: Provider) -> String {
     }
 }
 
+/// Menu bar title for the selected harness (empty when no star is selected).
 pub fn format_title(snapshot: &UsageSnapshot, favorite: Option<Favorite>) -> String {
     favorite
         .map(|favorite| value_for(snapshot, favorite))

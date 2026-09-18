@@ -1,3 +1,6 @@
+//! App wiring: plugins (autostart), shared state, the tray + refresh loop, and the focus
+//! behavior that hides the panel.
+
 mod commands;
 mod preferences;
 mod refresh;
