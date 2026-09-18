@@ -1,0 +1,160 @@
+import {
+  formatCost,
+  formatNumber,
+  formatPercent,
+  formatRelativeTime,
+  formatResetCountdown,
+  formatTokens,
+} from "./format";
+import type {
+  CommandCodeLimits,
+  ProviderUsage,
+  TokenTotals,
+  UsageSnapshot,
+  UsageWindow,
+  WindowLimit,
+} from "./types";
+
+const PROVIDER_LABEL: Record<ProviderUsage["provider"], string> = {
+  commandCode: "Command Code",
+  grok: "Grok",
+  openCode: "OpenCode",
+};
+
+function totalTokens(tokens: TokenTotals): number {
+  return tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite + tokens.reasoning;
+}
+
+function tokensLabel(tokens: TokenTotals): string {
+  return `${formatTokens(totalTokens(tokens))} tokens`;
+}
+
+function limitBar(percent: number, small = false): string {
+  const width = Math.max(0, Math.min(100, percent));
+  return `<div class="limit-bar${small ? " small" : ""}"><div class="limit-fill" style="width:${width.toFixed(1)}%"></div></div>`;
+}
+
+function windowRow(label: string, window: WindowLimit): string {
+  return `
+    <div class="window-row">
+      <span class="window-label">${label}</span>
+      ${limitBar(window.percentUsed, true)}
+      <span class="window-meta">${formatPercent(window.percentUsed)} · ${formatResetCountdown(window.resetAt)}</span>
+    </div>`;
+}
+
+function rows(window: UsageWindow, showCost: boolean, label: string): string {
+  const value = showCost ? formatCost(window.costUsd) : tokensLabel(window.tokens);
+  const secondary = showCost ? tokensLabel(window.tokens) : `${window.records} turnos`;
+  return `
+    <div class="row">
+      <span class="row-label">${label}</span>
+      <span class="row-value">${value}</span>
+      <span class="row-secondary">${secondary}</span>
+    </div>`;
+}
+
+function grokSection(usage: ProviderUsage): string {
+  const limits = usage.grok;
+  if (!limits) return "";
+  const tier = limits.tier ? ` · ${limits.tier}` : "";
+  return `
+    <div class="limit">
+      ${limitBar(limits.creditUsagePercent)}
+      <div class="limit-meta">
+        <span>${formatPercent(limits.creditUsagePercent)} do período semanal${tier}</span>
+        <span>${formatResetCountdown(limits.periodEnd)}</span>
+      </div>
+    </div>`;
+}
+
+function commandCodeSection(limits: CommandCodeLimits): string {
+  const badge = limits.plan
+    ? `<span class="badge">${limits.plan}${limits.status ? ` · ${limits.status}` : ""}</span>`
+    : "";
+
+  const renew =
+    limits.daysToRenew === null || limits.daysToRenew === undefined
+      ? ""
+      : limits.daysToRenew <= 0
+        ? "renova hoje"
+        : `renova em ${limits.daysToRenew} dias`;
+
+  const requests = `${formatNumber(limits.requestsThisPeriod)} ${
+    limits.periodBasis === "billing-period" ? "requests este mês" : "requests no período"
+  }`;
+
+  const windows = [
+    limits.fiveHour ? windowRow("5h", limits.fiveHour) : "",
+    limits.weekly ? windowRow("semanal", limits.weekly) : "",
+  ].join("");
+
+  return `
+    <div class="limit">
+      <div class="limit-meta top">
+        ${badge}
+        <span>${renew}</span>
+      </div>
+      ${limitBar(limits.usagePercent)}
+      <div class="limit-meta">
+        <span>${formatPercent(limits.usagePercent)} usado</span>
+        <span>${requests}</span>
+      </div>
+      ${windows}
+      <div class="limit-foot">saldo ${limits.creditsRemaining.toFixed(1)} de ${limits.creditsTotal.toFixed(0)} créditos</div>
+    </div>`;
+}
+
+function statusNotice(usage: ProviderUsage): string {
+  if (usage.status.state === "notFound") {
+    return `<div class="notice">não encontrado em ${usage.status.path}</div>`;
+  }
+  if (usage.status.state === "error") {
+    return `<div class="notice">erro: ${usage.status.message}</div>`;
+  }
+  return "";
+}
+
+function card(usage: ProviderUsage): string {
+  const showCost = usage.provider !== "grok";
+  const updated = usage.lastRecordAt
+    ? `atualizado ${formatRelativeTime(usage.lastRecordAt)}`
+    : "sem dados";
+  return `
+    <section class="card">
+      <header class="card-head">
+        <h2>${PROVIDER_LABEL[usage.provider]}</h2>
+        <span class="card-updated">${updated}</span>
+      </header>
+      ${statusNotice(usage)}
+      ${usage.commandCode ? commandCodeSection(usage.commandCode) : ""}
+      ${grokSection(usage)}
+      ${rows(usage.today, showCost, "hoje")}
+      ${rows(usage.last7d, showCost, "7 dias")}
+      ${rows(usage.last30d, showCost, "30 dias")}
+    </section>`;
+}
+
+export function panelHtml(snapshot: UsageSnapshot): string {
+  return `
+    <div class="panel">
+      <header class="panel-head">
+        <span class="panel-title">Code Usage</span>
+        <span class="panel-actions">
+          <button id="refresh" title="Atualizar agora">⟳</button>
+          <button id="close" title="Fechar">✕</button>
+        </span>
+      </header>
+      <main class="cards">
+        ${snapshot.providers.map(card).join("")}
+      </main>
+      <footer class="panel-foot">
+        <span>gerado ${formatRelativeTime(snapshot.generatedAt)}</span>
+        <button id="quit" title="Encerrar o Code Usage">sair</button>
+      </footer>
+    </div>`;
+}
+
+export function renderPanel(root: HTMLElement, snapshot: UsageSnapshot): void {
+  root.innerHTML = panelHtml(snapshot);
+}

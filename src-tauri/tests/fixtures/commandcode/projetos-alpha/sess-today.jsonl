@@ -1,0 +1,6 @@
+{"type":"session","version":3,"id":"sess-today","timestamp":"2026-09-17T12:00:01.000Z","cwd":"/tmp/projetos-alpha"}
+{"type":"message","id":"m1","parentId":null,"timestamp":"2026-09-17T12:00:05.000Z","message":{"role":"user","content":[{"type":"text","text":"oi"}]}}
+{"type":"message","id":"m2","parentId":"m1","timestamp":"2026-09-17T12:00:30.000Z","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]},"usage":{"inputTokens":1000,"outputTokens":100,"cacheReadTokens":50,"cacheWriteTokens":10,"costUsd":0.1}}
+this line is not json at all
+{"type":"message","id":"m3","parentId":"m2","timestamp":"2026-09-17T13:00:00.000Z","message":{"role":"assistant","content":[]},"usage":{"inputTokens":2000,"outputTokens":200,"cacheReadTokens":100,"cacheWriteTokens":20,"costUsd":0.2}}
+{"type":"message","id":"m4","parentId":"m3","timestamp":"not-a-date","message":{"role":"assistant","content":[]},"usage":{"inputTokens":1,"outputTokens":1,"cacheReadTokens":0,"cacheWriteTokens":0,"costUsd":9.99}}

@@ -1,0 +1,9 @@
+{"ts":"2026-09-14T16:15:28.611Z","src":"shell","pid":4026,"ver":"1.0.25","lvl":"info","msg":"billing: fetched credits config","ctx":{"config":{"creditUsagePercent":39.0,"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-11T12:30:51.769833+00:00","end":"2026-09-18T12:30:51.769833+00:00"},"onDemandCap":{"val":0}},"onDemandEnabled":null,"subscriptionTier":"SuperGrok Plus"}}
+{"ts":"2026-09-17T14:22:36.406Z","src":"shell","pid":69606,"ver":"1.0.34","lvl":"info","msg":"billing: fetched credits config","ctx":{"config":{"creditUsagePercent":46.0,"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-17T13:25:23.983555+00:00","end":"2026-09-24T13:25:23.983555+00:00"},"onDemandCap":{"val":0},"prepaidBalance":{"val":0}},"onDemandEnabled":null,"subscriptionTier":"SuperGrok Plus"}}
+{"ts":"2026-09-17T14:30:00.000Z","src":"shell","pid":69606,"ver":"1.0.34","lvl":"info","msg":"billing: fetched credits config","ctx":{"config":{"creditUsagePercent":99.0}}}
+{"ts":"2026-09-10T10:00:00.000Z","src":"shell","pid":1000,"msg":"shell.turn.inference_done","ctx":{"loop_index":1,"prompt_tokens":500,"cached_prompt_tokens":100,"completion_tokens":30}}
+{"ts":"2026-09-17T12:00:00.000Z","src":"shell","pid":1000,"msg":"shell.turn.inference_done","ctx":{"loop_index":1,"model_elapsed_ms":5747,"prompt_tokens":1000,"cached_prompt_tokens":400,"completion_tokens":50}}
+{"ts":"2026-09-17T13:00:00.000Z","src":"shell","pid":1000,"msg":"shell.turn.inference_done","ctx":{"loop_index":2,"prompt_tokens":2000,"cached_prompt_tokens":1000,"completion_tokens":120}}
+{"ts":"2026-09-17T13:00:05.000Z","src":"shell","pid":1000,"msg":"slash.advertise","ctx":{"trigger":"skills_reload","count":135}}
+{"ts":"2026-09-17T13:00:06.000Z","src":"shell","pid":1000,"msg":"session_end.worker_join","ctx":{"elapsed_ms":745,"outcome":"joined"}}
+not json
