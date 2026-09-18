@@ -93,9 +93,10 @@ body {
 }
 
 .chevron {
-  margin-left: 5px;
-  font-size: 9px;
-  color: #93a0b4;
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: #cbd5e1;
   transition: transform 0.15s ease;
 }
 
