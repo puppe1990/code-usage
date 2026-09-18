@@ -114,12 +114,10 @@ pub fn collect(path: &Path, since: DateTime<Utc>) -> Result<GrokData, CollectErr
                     limits = Some(candidate);
                 }
             }
-            Some(GrokEvent::Inference(record)) => {
-                if record.timestamp >= since {
-                    records.push(record);
-                }
+            Some(GrokEvent::Inference(record)) if record.timestamp >= since => {
+                records.push(record);
             }
-            None => {}
+            Some(GrokEvent::Inference(_)) | None => {}
         }
     }
 
