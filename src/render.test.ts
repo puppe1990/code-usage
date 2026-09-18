@@ -146,20 +146,22 @@ describe("panelHtml", () => {
   });
 
   it("renders one star per harness in the card header", () => {
-    const html = panelHtml(snapshot, []);
+    const html = panelHtml(snapshot, null);
 
     for (const id of ["grok", "commandCode", "openCode"]) {
       expect(html).toContain(`data-favorite="${id}"`);
     }
     expect(html.match(/class="star/g) ?? []).toHaveLength(3);
+    expect(html).not.toContain('class="star active"');
   });
 
-  it("marks the favorited harnesses with an active star", () => {
-    const html = panelHtml(snapshot, ["grok"]);
+  it("marks only the selected harness as active", () => {
+    const html = panelHtml(snapshot, "openCode");
 
-    expect(html).toContain('class="star active" data-favorite="grok"');
+    expect(html.match(/class="star active"/g) ?? []).toHaveLength(1);
+    expect(html).toContain('class="star active" data-favorite="openCode"');
+    expect(html).toContain('class="star" data-favorite="grok"');
     expect(html).toContain('class="star" data-favorite="commandCode"');
-    expect(html).toContain('class="star" data-favorite="openCode"');
   });
 
   it("renders a notice when a provider is missing", () => {

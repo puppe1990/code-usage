@@ -11,13 +11,16 @@ pub fn get_usage(state: State<'_, AppState>) -> Option<UsageSnapshot> {
 }
 
 #[tauri::command]
-pub fn get_favorites(state: State<'_, AppState>) -> Vec<Favorite> {
-    state.favorites()
+pub fn get_favorite(state: State<'_, AppState>) -> Option<Favorite> {
+    state.favorite()
 }
 
 #[tauri::command]
-pub fn set_favorites(app: AppHandle, favorites: Vec<Favorite>) -> Result<Vec<Favorite>, String> {
-    let preferences = Preferences::with_favorites(favorites);
+pub fn set_favorite(
+    app: AppHandle,
+    favorite: Option<Favorite>,
+) -> Result<Option<Favorite>, String> {
+    let preferences = Preferences::with_favorite(favorite);
     preferences.save()?;
 
     if let Some(state) = app.try_state::<AppState>() {
@@ -31,7 +34,7 @@ pub fn set_favorites(app: AppHandle, favorites: Vec<Favorite>) -> Result<Vec<Fav
         }
     }
 
-    Ok(preferences.favorites)
+    Ok(preferences.favorite)
 }
 
 #[tauri::command]

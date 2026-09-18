@@ -32,11 +32,11 @@ impl AppState {
         }
     }
 
-    pub fn favorites(&self) -> Vec<Favorite> {
+    pub fn favorite(&self) -> Option<Favorite> {
         self.preferences
             .lock()
-            .map(|preferences| preferences.favorites.clone())
-            .unwrap_or_default()
+            .ok()
+            .and_then(|preferences| preferences.favorite)
     }
 
     fn was_just_shown(&self, threshold: std::time::Duration) -> bool {
@@ -54,8 +54,8 @@ pub fn run() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::get_usage,
-            commands::get_favorites,
-            commands::set_favorites,
+            commands::get_favorite,
+            commands::set_favorite,
             commands::refresh_now,
             commands::hide_panel,
             commands::quit_app

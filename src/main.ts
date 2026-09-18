@@ -11,12 +11,12 @@ function requireRoot(): HTMLDivElement {
 }
 
 const root = requireRoot();
-let favorites: FavoriteId[] = [];
+let favorite: FavoriteId | null = null;
 let latest: UsageSnapshot | null = null;
 
 function render(): void {
   if (latest) {
-    renderPanel(root, latest, favorites);
+    renderPanel(root, latest, favorite);
   }
 }
 
@@ -34,18 +34,14 @@ async function pull(): Promise<void> {
   }
 }
 
-async function toggleFavorite(favorite: FavoriteId): Promise<void> {
-  const next = favorites.includes(favorite)
-    ? favorites.filter((current) => current !== favorite)
-    : [...favorites, favorite];
-
-  favorites = next;
+async function toggleFavorite(next: FavoriteId): Promise<void> {
+  favorite = favorite === next ? null : next;
   render();
 
   try {
-    favorites = await invoke<FavoriteId[]>("set_favorites", { favorites: next });
+    favorite = await invoke<FavoriteId | null>("set_favorite", { favorite });
   } catch (error) {
-    console.error("failed to save favorites", error);
+    console.error("failed to save favorite", error);
   }
   render();
 }
@@ -69,12 +65,12 @@ document.addEventListener("keydown", (event) => {
 
 root.innerHTML = '<div class="loading">carregando usage…</div>';
 
-void invoke<FavoriteId[]>("get_favorites")
+void invoke<FavoriteId | null>("get_favorite")
   .then((saved) => {
-    favorites = saved;
+    favorite = saved;
     render();
   })
-  .catch((error) => console.error("failed to load favorites", error));
+  .catch((error) => console.error("failed to load favorite", error));
 
 void listen<UsageSnapshot>("usage-updated", (event) => {
   latest = event.payload;

@@ -80,12 +80,10 @@ fn today_cost(snapshot: &UsageSnapshot, kind: Provider) -> String {
     }
 }
 
-pub fn format_title(snapshot: &UsageSnapshot, favorites: &[Favorite]) -> String {
-    Favorite::ALL
-        .iter()
-        .filter(|favorite| favorites.contains(favorite))
-        .flat_map(|favorite| value_for(snapshot, *favorite))
-        .collect::<Vec<_>>()
+pub fn format_title(snapshot: &UsageSnapshot, favorite: Option<Favorite>) -> String {
+    favorite
+        .map(|favorite| value_for(snapshot, favorite))
+        .unwrap_or_default()
         .join(SEPARATOR)
 }
 
@@ -207,21 +205,8 @@ mod tests {
         ])
     }
 
-    fn full_snapshot() -> UsageSnapshot {
-        snapshot(vec![
-            provider(Provider::CommandCode, ProviderStatus::Ok, 1.09, None),
-            provider(
-                Provider::Grok,
-                ProviderStatus::Ok,
-                0.0,
-                Some(grok_limits(92.3)),
-            ),
-            provider(Provider::OpenCode, ProviderStatus::Ok, 3.434, None),
-        ])
-    }
-
-    fn default_favorites() -> Vec<Favorite> {
-        Preferences::default().favorites
+    fn default_favorite() -> Option<Favorite> {
+        Preferences::default().favorite
     }
 
     #[test]
@@ -233,30 +218,22 @@ mod tests {
     }
 
     #[test]
-    fn renders_grok_percent_and_todays_costs_by_default() {
+    fn renders_the_default_favorite() {
         assert_eq!(
-            format_title(&healthy_snapshot(), &default_favorites()),
-            "46% · $0.42 · $1.03"
+            format_title(&healthy_snapshot(), default_favorite()),
+            "$0.42"
         );
     }
 
     #[test]
-    fn renders_only_the_favorited_harnesses() {
-        assert_eq!(format_title(&healthy_snapshot(), &[Favorite::Grok]), "46%");
+    fn renders_only_the_favorited_harness() {
         assert_eq!(
-            format_title(
-                &healthy_snapshot(),
-                &[Favorite::CommandCode, Favorite::OpenCode]
-            ),
-            "$0.42 · $1.03"
+            format_title(&healthy_snapshot(), Some(Favorite::Grok)),
+            "46%"
         );
-    }
-
-    #[test]
-    fn keeps_the_canonical_order_regardless_of_input_order() {
         assert_eq!(
-            format_title(&healthy_snapshot(), &[Favorite::OpenCode, Favorite::Grok]),
-            "46% · $1.03"
+            format_title(&healthy_snapshot(), Some(Favorite::OpenCode)),
+            "$1.03"
         );
     }
 
@@ -280,9 +257,14 @@ mod tests {
         ]);
 
         assert_eq!(
-            format_title(&snapshot, &Favorite::ALL),
-            "92% · 10% · 5% · 11% · 21% · 10%"
+            format_title(&snapshot, Some(Favorite::CommandCode)),
+            "10% · 5%"
         );
+        assert_eq!(
+            format_title(&snapshot, Some(Favorite::OpenCode)),
+            "11% · 21% · 10%"
+        );
+        assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "92%");
     }
 
     #[test]
@@ -292,7 +274,7 @@ mod tests {
 
         let snapshot = snapshot(vec![open_code]);
 
-        assert_eq!(format_title(&snapshot, &[Favorite::OpenCode]), "10%");
+        assert_eq!(format_title(&snapshot, Some(Favorite::OpenCode)), "10%");
     }
 
     #[test]
@@ -300,28 +282,17 @@ mod tests {
         let mut command_code = provider(Provider::CommandCode, ProviderStatus::Ok, 1.09, None);
         command_code.command_code = Some(command_code_limits(None, None));
 
-        let mut open_code = provider(Provider::OpenCode, ProviderStatus::Ok, 3.434, None);
-        open_code.open_code_go = None;
-
-        let snapshot = snapshot(vec![command_code, open_code]);
+        let snapshot = snapshot(vec![command_code]);
 
         assert_eq!(
-            format_title(&snapshot, &[Favorite::CommandCode, Favorite::OpenCode]),
-            "$1.09 · $3.43"
+            format_title(&snapshot, Some(Favorite::CommandCode)),
+            "$1.09"
         );
     }
 
     #[test]
-    fn every_harness_can_be_favorited_at_once() {
-        assert_eq!(
-            format_title(&full_snapshot(), &Favorite::ALL),
-            "92% · $1.09 · $3.43"
-        );
-    }
-
-    #[test]
-    fn empty_favorites_produce_an_empty_title() {
-        assert_eq!(format_title(&healthy_snapshot(), &[]), "");
+    fn no_favorite_produces_an_empty_title() {
+        assert_eq!(format_title(&healthy_snapshot(), None), "");
     }
 
     #[test]
@@ -346,21 +317,20 @@ mod tests {
             ),
         ]);
 
-        assert_eq!(
-            format_title(&snapshot, &default_favorites()),
-            "– · $0.42 · –"
-        );
+        assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "–");
+        assert_eq!(format_title(&snapshot, Some(Favorite::OpenCode)), "–");
     }
 
     #[test]
     fn grok_without_limits_renders_placeholder() {
-        let snapshot = snapshot(vec![
-            provider(Provider::CommandCode, ProviderStatus::Ok, 0.0, None),
-            provider(Provider::Grok, ProviderStatus::Ok, 0.0, None),
-            provider(Provider::OpenCode, ProviderStatus::Ok, 0.0, None),
-        ]);
+        let snapshot = snapshot(vec![provider(
+            Provider::Grok,
+            ProviderStatus::Ok,
+            0.0,
+            None,
+        )]);
 
-        assert_eq!(format_title(&snapshot, &default_favorites()), "– · $0 · $0");
+        assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "–");
     }
 
     #[test]
@@ -372,9 +342,6 @@ mod tests {
             None,
         )]);
 
-        assert_eq!(
-            format_title(&snapshot, &[Favorite::Grok, Favorite::OpenCode]),
-            "– · –"
-        );
+        assert_eq!(format_title(&snapshot, Some(Favorite::OpenCode)), "–");
     }
 }

@@ -13,7 +13,7 @@ pub fn publish(app: &AppHandle, snapshot: &UsageSnapshot) {
             *guard = Some(snapshot.clone());
         }
         if let Some(icon) = app.tray_by_id(tray::TRAY_ID) {
-            let _ = icon.set_title(Some(tray::title_for(snapshot, &state.favorites())));
+            let _ = icon.set_title(Some(tray::title_for(snapshot, state.favorite())));
         }
     }
     let _ = app.emit("usage-updated", snapshot);

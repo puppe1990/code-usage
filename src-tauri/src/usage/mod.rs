@@ -333,7 +333,7 @@ mod smoke_tests {
             "tray title: {}",
             tray_title::format_title(
                 &snapshot,
-                &crate::preferences::Preferences::default().favorites
+                crate::preferences::Preferences::default().favorite
             )
         );
     }
