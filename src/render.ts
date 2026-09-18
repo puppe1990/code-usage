@@ -1,4 +1,6 @@
 import commandCodeMark from "../src-tauri/icons/command-code.svg?raw";
+import grokMark from "../src-tauri/icons/grok.svg?raw";
+import openCodeMark from "../src-tauri/icons/opencode.svg?raw";
 import {
   formatCost,
   formatNumber,
@@ -23,12 +25,14 @@ const PROVIDER_LABEL: Record<ProviderUsage["provider"], string> = {
   openCode: "OpenCode",
 };
 
-const PROVIDER_MARK: Partial<Record<ProviderUsage["provider"], string>> = {
+const PROVIDER_MARK: Record<ProviderUsage["provider"], string> = {
   commandCode: commandCodeMark.trim(),
+  grok: grokMark.trim(),
+  openCode: openCodeMark.trim(),
 };
 
 function providerHeading(provider: ProviderUsage["provider"]): string {
-  return `${PROVIDER_MARK[provider] ?? ""}${PROVIDER_LABEL[provider]}`;
+  return `${PROVIDER_MARK[provider]}${PROVIDER_LABEL[provider]}`;
 }
 
 function totalTokens(tokens: TokenTotals): number {
@@ -162,7 +166,7 @@ function card(usage: ProviderUsage, favorite: FavoriteId | null): string {
     ? `atualizado ${formatRelativeTime(usage.lastRecordAt)}`
     : "sem dados";
   return `
-    <section class="card">
+    <section class="card" data-provider="${usage.provider}">
       <header class="card-head">
         <h2>${providerHeading(usage.provider)}</h2>
         <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}</span>

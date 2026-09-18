@@ -91,6 +91,11 @@ body {
   vertical-align: -2px;
 }
 
+/* the OpenCode mark is drawn for light backgrounds: invert it for the dark panel */
+.card[data-provider="openCode"] .provider-logo {
+  filter: invert(1);
+}
+
 .card-updated {
   font-size: 11px;
   color: #93a0b4;

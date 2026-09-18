@@ -9,6 +9,8 @@ pub const WINDOW_LABEL: &str = "main";
 
 const GAUGE_ICON: &[u8] = include_bytes!("../icons/tray-icon.png");
 const COMMAND_CODE_ICON: &[u8] = include_bytes!("../icons/command-code.png");
+const GROK_ICON: &[u8] = include_bytes!("../icons/grok.png");
+const OPEN_CODE_ICON: &[u8] = include_bytes!("../icons/opencode.png");
 
 const EDGE_MARGIN: f64 = 8.0;
 const ICON_GAP: f64 = 6.0;
@@ -32,12 +34,14 @@ pub fn title_for(snapshot: &UsageSnapshot, favorite: Option<Favorite>) -> String
     tray_title::format_title(snapshot, favorite)
 }
 
-/// Menu bar mark for the selected harness: Command Code has its own, the rest (and the icon-only
-/// state) keep the gauge.
+/// Menu bar mark for the selected harness: each one has its own, and the icon-only state keeps the
+/// gauge.
 pub fn icon_bytes(favorite: Option<Favorite>) -> &'static [u8] {
     match favorite {
         Some(Favorite::CommandCode) => COMMAND_CODE_ICON,
-        _ => GAUGE_ICON,
+        Some(Favorite::Grok) => GROK_ICON,
+        Some(Favorite::OpenCode) => OPEN_CODE_ICON,
+        None => GAUGE_ICON,
     }
 }
 
@@ -240,15 +244,15 @@ mod tests {
     }
 
     #[test]
-    fn keeps_the_gauge_unless_command_code_is_selected() {
+    fn each_harness_has_its_own_menu_bar_mark() {
         assert!(std::ptr::eq(
             icon_bytes(Some(Favorite::CommandCode)),
             COMMAND_CODE_ICON
         ));
-        assert!(std::ptr::eq(icon_bytes(Some(Favorite::Grok)), GAUGE_ICON));
+        assert!(std::ptr::eq(icon_bytes(Some(Favorite::Grok)), GROK_ICON));
         assert!(std::ptr::eq(
             icon_bytes(Some(Favorite::OpenCode)),
-            GAUGE_ICON
+            OPEN_CODE_ICON
         ));
         assert!(std::ptr::eq(icon_bytes(None), GAUGE_ICON));
     }
