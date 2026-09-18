@@ -7,10 +7,10 @@ use tauri::{AppHandle, LogicalPosition, Manager, Position, Rect, Size, WebviewWi
 pub const TRAY_ID: &str = "usage-tray";
 pub const WINDOW_LABEL: &str = "main";
 
-const GAUGE_ICON: &[u8] = include_bytes!("../icons/tray-icon.png");
-const COMMAND_CODE_ICON: &[u8] = include_bytes!("../icons/command-code.png");
-const GROK_ICON: &[u8] = include_bytes!("../icons/grok.png");
-const OPEN_CODE_ICON: &[u8] = include_bytes!("../icons/opencode.png");
+static GAUGE_ICON: &[u8] = include_bytes!("../icons/tray-icon.png");
+static COMMAND_CODE_ICON: &[u8] = include_bytes!("../icons/command-code.png");
+static GROK_ICON: &[u8] = include_bytes!("../icons/grok.png");
+static OPEN_CODE_ICON: &[u8] = include_bytes!("../icons/opencode.png");
 
 const EDGE_MARGIN: f64 = 8.0;
 const ICON_GAP: f64 = 6.0;
@@ -245,16 +245,11 @@ mod tests {
 
     #[test]
     fn each_harness_has_its_own_menu_bar_mark() {
-        assert!(std::ptr::eq(
-            icon_bytes(Some(Favorite::CommandCode)),
-            COMMAND_CODE_ICON
-        ));
-        assert!(std::ptr::eq(icon_bytes(Some(Favorite::Grok)), GROK_ICON));
-        assert!(std::ptr::eq(
-            icon_bytes(Some(Favorite::OpenCode)),
-            OPEN_CODE_ICON
-        ));
-        assert!(std::ptr::eq(icon_bytes(None), GAUGE_ICON));
+        // compare contents: pointers to consts are not guaranteed to be unique
+        assert_eq!(icon_bytes(Some(Favorite::CommandCode)), COMMAND_CODE_ICON);
+        assert_eq!(icon_bytes(Some(Favorite::Grok)), GROK_ICON);
+        assert_eq!(icon_bytes(Some(Favorite::OpenCode)), OPEN_CODE_ICON);
+        assert_eq!(icon_bytes(None), GAUGE_ICON);
     }
 
     #[test]
