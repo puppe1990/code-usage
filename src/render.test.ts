@@ -104,19 +104,29 @@ describe("panelHtml", () => {
 
     expect(html).toContain("GOAT · active");
     expect(html).toContain("renova em 23 dias");
-    expect(html).toContain("45% usado");
-    expect(html).toContain("7.776 requests este mês");
+    expect(html).toContain("2% do período semanal");
+    expect(html).toContain("45% · 7.776 requests este mês");
     expect(html).toContain("saldo 38.5 de 70 créditos");
     expect(html).toContain("5h");
-    expect(html).toContain("semanal");
+    expect(html).toContain("mensal");
     expect(html).toContain("reseta em");
+  });
+
+  it("renders the weekly window as the largest bar of the Command Code card", () => {
+    const html = panelHtml(snapshot);
+    const block = html.slice(html.indexOf("Command Code"), html.indexOf("Grok"));
+
+    expect(block).toContain('class="limit-bar"><div class="limit-fill" style="width:1.9%');
+    expect(block).toContain('<span class="window-label">5h</span>');
+    expect(block).toContain('<span class="window-label">mensal</span>');
+    expect(block).not.toContain('<span class="window-label">semanal</span>');
   });
 
   it("renders the OpenCode Go windows", () => {
     const html = panelHtml(snapshot);
 
     expect(html).toContain("OpenCode Go");
-    expect(html).toContain("rolling");
+    expect(html).toContain('<span class="window-label">5h</span>');
     expect(html).toContain("11%");
     expect(html).toContain("21%");
     expect(html).toContain("mensal");
@@ -129,7 +139,7 @@ describe("panelHtml", () => {
 
     expect(goBlock).toContain('class="limit-bar"><div class="limit-fill" style="width:21.0%');
     expect(goBlock).toContain("21% do período semanal");
-    expect(goBlock).toContain('<span class="window-label">rolling</span>');
+    expect(goBlock).toContain('<span class="window-label">5h</span>');
     expect(goBlock).toContain('<span class="window-label">mensal</span>');
     expect(goBlock).not.toContain('<span class="window-label">semanal</span>');
     expect(goBlock).not.toContain(
