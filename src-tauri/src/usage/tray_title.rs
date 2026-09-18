@@ -15,6 +15,10 @@ fn percent(value: f64) -> String {
     format!("{value:.0}%")
 }
 
+fn window_value(label: &str, value: f64) -> String {
+    format!("{label} {}", percent(value))
+}
+
 fn provider(snapshot: &UsageSnapshot, provider: Provider) -> Option<&super::ProviderUsage> {
     snapshot
         .providers
@@ -27,7 +31,7 @@ fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> Vec<String> {
         Favorite::Grok => vec![provider(snapshot, Provider::Grok)
             .filter(|usage| matches!(usage.status, ProviderStatus::Ok))
             .and_then(|usage| usage.grok.as_ref())
-            .map(|limits| percent(limits.credit_usage_percent))
+            .map(|limits| window_value("W", limits.credit_usage_percent))
             .unwrap_or_else(placeholder)],
         Favorite::CommandCode => {
             let windows = provider(snapshot, Provider::CommandCode)
@@ -35,10 +39,10 @@ fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> Vec<String> {
                 .map(|limits| {
                     let mut values = Vec::new();
                     if let Some(window) = limits.five_hour.as_ref() {
-                        values.push(percent(window.percent_used));
+                        values.push(window_value("5h", window.percent_used));
                     }
                     if let Some(window) = limits.weekly.as_ref() {
-                        values.push(percent(window.percent_used));
+                        values.push(window_value("W", window.percent_used));
                     }
                     values
                 })
@@ -54,11 +58,16 @@ fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> Vec<String> {
             let windows = provider(snapshot, Provider::OpenCode)
                 .and_then(|usage| usage.open_code_go.as_ref())
                 .map(|limits| {
-                    [&limits.rolling, &limits.weekly, &limits.monthly]
-                        .into_iter()
-                        .flatten()
-                        .map(|window| percent(window.percent))
-                        .collect::<Vec<_>>()
+                    [
+                        ("5h", limits.rolling.as_ref()),
+                        ("W", limits.weekly.as_ref()),
+                        ("M", limits.monthly.as_ref()),
+                    ]
+                    .into_iter()
+                    .filter_map(|(label, window)| {
+                        window.map(|window| window_value(label, window.percent))
+                    })
+                    .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
 
@@ -229,7 +238,7 @@ mod tests {
     fn renders_only_the_favorited_harness() {
         assert_eq!(
             format_title(&healthy_snapshot(), Some(Favorite::Grok)),
-            "46%"
+            "W 46%"
         );
         assert_eq!(
             format_title(&healthy_snapshot(), Some(Favorite::OpenCode)),
@@ -258,13 +267,13 @@ mod tests {
 
         assert_eq!(
             format_title(&snapshot, Some(Favorite::CommandCode)),
-            "10% · 5%"
+            "5h 10% · W 5%"
         );
         assert_eq!(
             format_title(&snapshot, Some(Favorite::OpenCode)),
-            "11% · 21% · 10%"
+            "5h 11% · W 21% · M 10%"
         );
-        assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "92%");
+        assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "W 92%");
     }
 
     #[test]
@@ -274,7 +283,7 @@ mod tests {
 
         let snapshot = snapshot(vec![open_code]);
 
-        assert_eq!(format_title(&snapshot, Some(Favorite::OpenCode)), "10%");
+        assert_eq!(format_title(&snapshot, Some(Favorite::OpenCode)), "M 10%");
     }
 
     #[test]
