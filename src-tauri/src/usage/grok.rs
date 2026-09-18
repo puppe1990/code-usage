@@ -47,13 +47,17 @@ pub fn parse_line(line: &str) -> Option<GrokEvent> {
     }
 }
 
-/// `billing: fetched credits config` carries the weekly percentage and its period.
+/// `billing: fetched credits config` carries the weekly percentage and its period. Some accounts
+/// (e.g. `SuperGrok Plus`) omit the percentage, so it stays `None` instead of reusing whichever
+/// account logged it last.
 fn billing_event(context: &serde_json::Value, timestamp: DateTime<Utc>) -> Option<GrokEvent> {
     let config = context.get("config")?;
     let period = config.get("currentPeriod")?;
 
     Some(GrokEvent::Billing(GrokLimits {
-        credit_usage_percent: config.get("creditUsagePercent")?.as_f64()?,
+        credit_usage_percent: config
+            .get("creditUsagePercent")
+            .and_then(|value| value.as_f64()),
         period_start: DateTime::parse_from_rfc3339(period.get("start")?.as_str()?)
             .ok()?
             .with_timezone(&Utc),
@@ -160,7 +164,7 @@ mod tests {
         let data = collect(&fixture_path(), since()).expect("fixture log is readable");
 
         let limits = data.limits.expect("billing limits");
-        assert!((limits.credit_usage_percent - 46.0).abs() < 1e-9);
+        assert_eq!(limits.credit_usage_percent, Some(46.0));
         assert_eq!(
             limits.period_start.to_rfc3339(),
             "2026-09-17T13:25:23.983555+00:00"
@@ -173,6 +177,24 @@ mod tests {
         assert_eq!(
             limits.fetched_at.to_rfc3339(),
             "2026-09-17T14:22:36.406+00:00"
+        );
+    }
+
+    #[test]
+    fn keeps_the_active_account_when_the_newest_config_omits_the_percentage() {
+        let path = fixture_path().with_file_name("switched-account.jsonl");
+        let data = collect(&path, since()).expect("fixture log is readable");
+
+        let limits = data.limits.expect("billing limits");
+        assert_eq!(limits.credit_usage_percent, None);
+        assert_eq!(limits.tier.as_deref(), Some("SuperGrok Plus"));
+        assert_eq!(
+            limits.fetched_at.to_rfc3339(),
+            "2026-09-18T12:43:06.588+00:00"
+        );
+        assert_eq!(
+            limits.period_start.to_rfc3339(),
+            "2026-09-18T12:30:51.769833+00:00"
         );
     }
 

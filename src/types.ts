@@ -18,7 +18,7 @@ export type ProviderStatus =
   { state: "ok" } | { state: "notFound"; path: string } | { state: "error"; message: string };
 
 export interface GrokLimits {
-  creditUsagePercent: number;
+  creditUsagePercent: number | null;
   periodStart: string;
   periodEnd: string;
   tier?: string | null;

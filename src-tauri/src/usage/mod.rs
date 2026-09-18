@@ -104,7 +104,7 @@ pub enum ProviderStatus {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GrokLimits {
-    pub credit_usage_percent: f64,
+    pub credit_usage_percent: Option<f64>,
     pub period_start: DateTime<Utc>,
     pub period_end: DateTime<Utc>,
     pub tier: Option<String>,
@@ -319,7 +319,7 @@ mod smoke_tests {
             );
             if let Some(limits) = &usage.grok {
                 println!(
-                    "  grok limits: {:.1}% ({} -> {}), tier={:?}",
+                    "  grok limits: {:?}% ({} -> {}), tier={:?}",
                     limits.credit_usage_percent,
                     limits.period_start.to_rfc3339(),
                     limits.period_end.to_rfc3339(),

@@ -78,6 +78,15 @@ function grokSection(usage: ProviderUsage): string {
   const limits = usage.grok;
   if (!limits) return "";
   const tier = limits.tier ? ` · ${limits.tier}` : "";
+  if (limits.creditUsagePercent === null || limits.creditUsagePercent === undefined) {
+    return `
+    <div class="limit">
+      <div class="limit-meta">
+        <span>Uso semanal não informado pela conta${tier}</span>
+        <span>${formatResetCountdown(limits.periodEnd)}</span>
+      </div>
+    </div>`;
+  }
   return `
     <div class="limit">
       ${limitBar(limits.creditUsagePercent)}
