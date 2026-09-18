@@ -6,6 +6,7 @@
 A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **OpenCode** in one place.
 
 - **Menu bar title:** **one** harness at a time — the ★ in the panel is a single choice (default: Command Code; clicking the active star clears it and leaves only the icon). The chosen harness shows the plan windows it has, each labelled: `5h` for the rolling/five-hour window, `W` for the weekly one and `M` for the monthly one, in that order — Grok gives `W 100%`, Command Code `5h 12% · W 5% · M 46%` (its billing period is monthly, so `M` is the plan percentage shown in the dashboard) and OpenCode Go `5h 20% · W 25% · M 12%`. When a harness has no window data (limits unavailable, no subscription) the title falls back to today's cost, and missing data renders as `–`
+- **Menu bar mark:** the selected harness also picks the icon — Command Code shows its own mark, the other harnesses (and the icon-only state) keep the gauge
 - **Click the icon:** a panel with today / 7 days / 30 days per provider, tokens (input, output, cache), the Grok weekly window, the Command Code plan limits (plan, percentage used, requests, renewal and the 5-hour/weekly windows) and the OpenCode Go windows (rolling / weekly / monthly)
 - **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The only network calls read your plan limits (Command Code and OpenCode Go) using credentials the CLIs themselves store — see below.
 
@@ -64,7 +65,7 @@ Nothing runs "always": both the pre-commit hook and CI only execute what the dif
   - `.github/workflows/rust.yml` (macOS, with cargo caching): `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` — triggers only on changes to `src-tauri/**`.
   - In other words: a README-only change runs no CI, and a frontend change never pays for the ~1-6 min Rust job.
 
-To regenerate the icons (drawn in `scripts/generate-icons.mjs`):
+To regenerate the icons (drawn in `scripts/generate-icons.mjs`, which rasterizes the Command Code mark from `src-tauri/icons/command-code.svg` through `scripts/command-code-mark.mjs`):
 
 ```bash
 node scripts/generate-icons.mjs
@@ -83,6 +84,6 @@ The app runs with no Dock icon (`ActivationPolicy::Accessory`); to quit, use the
 ## Architecture
 
 - `src-tauri/src/usage/` — pure, testable parsers (`commandcode.rs`, `grok.rs`, `opencode.rs`), time windows (`window.rs`) and tray title formatting (`tray_title.rs`)
-- `src-tauri/src/tray.rs` — menu bar icon and popover positioning
+- `src-tauri/src/tray.rs` — menu bar mark (the gauge, or the Command Code logo while that harness is selected) and popover positioning
 - `src-tauri/src/refresh.rs` — 60s recompute loop plus the event sent to the panel
 - `src/` — the panel in plain TypeScript (Vite), with formatting helpers covered by Vitest

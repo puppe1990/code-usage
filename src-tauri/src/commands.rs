@@ -23,6 +23,8 @@ pub fn set_favorite(
     let preferences = Preferences::with_favorite(favorite);
     preferences.save()?;
 
+    tray::sync_icon(&app, preferences.favorite);
+
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(mut guard) = state.preferences.lock() {
             *guard = preferences.clone();

@@ -1,3 +1,4 @@
+import commandCodeMark from "../src-tauri/icons/command-code.svg?raw";
 import {
   formatCost,
   formatNumber,
@@ -21,6 +22,14 @@ const PROVIDER_LABEL: Record<ProviderUsage["provider"], string> = {
   grok: "Grok",
   openCode: "OpenCode",
 };
+
+const PROVIDER_MARK: Partial<Record<ProviderUsage["provider"], string>> = {
+  commandCode: commandCodeMark.trim(),
+};
+
+function providerHeading(provider: ProviderUsage["provider"]): string {
+  return `${PROVIDER_MARK[provider] ?? ""}${PROVIDER_LABEL[provider]}`;
+}
 
 function totalTokens(tokens: TokenTotals): number {
   return tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite + tokens.reasoning;
@@ -155,7 +164,7 @@ function card(usage: ProviderUsage, favorite: FavoriteId | null): string {
   return `
     <section class="card">
       <header class="card-head">
-        <h2>${PROVIDER_LABEL[usage.provider]}</h2>
+        <h2>${providerHeading(usage.provider)}</h2>
         <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}</span>
       </header>
       ${statusNotice(usage)}

@@ -7,6 +7,9 @@ use tauri::{AppHandle, LogicalPosition, Manager, Position, Rect, Size, WebviewWi
 pub const TRAY_ID: &str = "usage-tray";
 pub const WINDOW_LABEL: &str = "main";
 
+const GAUGE_ICON: &[u8] = include_bytes!("../icons/tray-icon.png");
+const COMMAND_CODE_ICON: &[u8] = include_bytes!("../icons/command-code.png");
+
 const EDGE_MARGIN: f64 = 8.0;
 const ICON_GAP: f64 = 6.0;
 const DEFAULT_WINDOW_WIDTH: f64 = 360.0;
@@ -29,9 +32,27 @@ pub fn title_for(snapshot: &UsageSnapshot, favorite: Option<Favorite>) -> String
     tray_title::format_title(snapshot, favorite)
 }
 
+/// Menu bar mark for the selected harness: Command Code has its own, the rest (and the icon-only
+/// state) keep the gauge.
+pub fn icon_bytes(favorite: Option<Favorite>) -> &'static [u8] {
+    match favorite {
+        Some(Favorite::CommandCode) => COMMAND_CODE_ICON,
+        _ => GAUGE_ICON,
+    }
+}
+
+fn icon_for(favorite: Option<Favorite>) -> tauri::Result<Image<'static>> {
+    Image::from_bytes(icon_bytes(favorite))
+}
+
+fn selected(app: &AppHandle) -> Option<Favorite> {
+    app.try_state::<crate::AppState>()
+        .and_then(|state| state.favorite())
+}
+
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(Image::from_bytes(include_bytes!("../icons/tray-icon.png"))?)
+        .icon(icon_for(selected(app))?)
         .icon_as_template(true)
         .title("…")
         .on_tray_icon_event(|tray, event| {
@@ -47,6 +68,17 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     Ok(())
+}
+
+/// Keeps the menu bar mark in sync with the selected harness.
+pub fn sync_icon(app: &AppHandle, favorite: Option<Favorite>) {
+    let Some(icon) = app.tray_by_id(TRAY_ID) else {
+        return;
+    };
+    let Ok(image) = icon_for(favorite) else {
+        return;
+    };
+    let _ = icon.set_icon_with_as_template(Some(image), true);
 }
 
 fn toggle_window_at(app: &AppHandle, rect: Rect) {
@@ -205,6 +237,20 @@ mod tests {
             width: 1728.0,
             height: 1117.0,
         })
+    }
+
+    #[test]
+    fn keeps_the_gauge_unless_command_code_is_selected() {
+        assert!(std::ptr::eq(
+            icon_bytes(Some(Favorite::CommandCode)),
+            COMMAND_CODE_ICON
+        ));
+        assert!(std::ptr::eq(icon_bytes(Some(Favorite::Grok)), GAUGE_ICON));
+        assert!(std::ptr::eq(
+            icon_bytes(Some(Favorite::OpenCode)),
+            GAUGE_ICON
+        ));
+        assert!(std::ptr::eq(icon_bytes(None), GAUGE_ICON));
     }
 
     #[test]

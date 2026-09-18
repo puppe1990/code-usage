@@ -2,6 +2,7 @@ import { deflateSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderCommandCode } from "./command-code-mark.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -129,5 +130,6 @@ writeFileSync(
   resolve(iconsDir, "tray-icon.png"),
   encodePng(44, 44, render(44, { background: null, foreground: [0, 0, 0] })),
 );
+writeFileSync(resolve(iconsDir, "command-code.png"), encodePng(44, 44, renderCommandCode(44)));
 
 console.log("icons written to", iconsDir);

@@ -145,6 +145,19 @@ describe("panelHtml", () => {
     expect(html).toContain("77% do período semanal · SuperGrok");
   });
 
+  it("renders the Command Code mark only in its own card header", () => {
+    const html = panelHtml(snapshot);
+    const [, commandCode, grok, openCode] = html.split('<section class="card">');
+
+    expect(commandCode).toContain('class="provider-logo"');
+    expect(commandCode.indexOf('class="provider-logo"')).toBeLessThan(
+      commandCode.indexOf("Command Code"),
+    );
+    expect(grok).not.toContain('class="provider-logo"');
+    expect(openCode).not.toContain('class="provider-logo"');
+    expect(html.match(/class="provider-logo"/g) ?? []).toHaveLength(1);
+  });
+
   it("renders one star per harness in the card header", () => {
     const html = panelHtml(snapshot, null);
 

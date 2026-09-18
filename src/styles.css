@@ -84,6 +84,13 @@ body {
   font-weight: 600;
 }
 
+.provider-logo {
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
 .card-updated {
   font-size: 11px;
   color: #93a0b4;
