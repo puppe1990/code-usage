@@ -5,6 +5,8 @@
 
 A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **OpenCode** in one place.
 
+<img src="docs/panel.png" alt="Panel with the usage cards for Command Code, Grok and OpenCode" width="348">
+
 <img src="docs/tray.png" alt="Menu bar title with the Command Code mark and the 5h / weekly / monthly windows" width="382">
 
 - **Menu bar title:** **one** harness at a time — the ★ in the panel is a single choice (default: Command Code; clicking the active star clears it and leaves only the icon). The chosen harness shows the plan windows it has, each labelled: `5h` for the rolling/five-hour window, `W` for the weekly one and `M` for the monthly one, in that order — Grok gives `W 100%`, Command Code `5h 12% · W 5% · M 46%` (its billing period is monthly, so `M` is the plan percentage shown in the dashboard) and OpenCode Go `5h 20% · W 25% · M 12%`. When a harness has no window data (limits unavailable, no subscription) the title falls back to today's cost, and missing data renders as `–`
