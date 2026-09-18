@@ -79,9 +79,36 @@ body {
   margin-bottom: 8px;
 }
 
+.card-head[data-collapse] {
+  cursor: pointer;
+}
+
+.card-head[data-collapse]:hover .chevron {
+  color: #e8ecf3;
+}
+
 .card-head h2 {
   font-size: 13px;
   font-weight: 600;
+}
+
+.chevron {
+  margin-left: 5px;
+  font-size: 9px;
+  color: #93a0b4;
+  transition: transform 0.15s ease;
+}
+
+.card.expanded .chevron {
+  transform: rotate(90deg);
+}
+
+.card-body {
+  display: none;
+}
+
+.card.expanded .card-body {
+  display: block;
 }
 
 .provider-logo {
