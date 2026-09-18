@@ -51,11 +51,17 @@ impl AppState {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::get_usage,
             commands::get_favorite,
             commands::set_favorite,
+            commands::get_autostart,
+            commands::set_autostart,
             commands::refresh_now,
             commands::hide_panel,
             commands::quit_app

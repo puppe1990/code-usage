@@ -13,11 +13,12 @@ function requireRoot(): HTMLDivElement {
 const root = requireRoot();
 let favorite: FavoriteId | null = null;
 let latest: UsageSnapshot | null = null;
+let autostart = false;
 const expanded = new Set<ProviderId>();
 
 function render(): void {
   if (latest) {
-    renderPanel(root, latest, favorite, expanded);
+    renderPanel(root, latest, favorite, expanded, autostart);
   }
 }
 
@@ -56,6 +57,18 @@ function toggleCollapse(provider: ProviderId): void {
   render();
 }
 
+async function updateAutostart(enabled: boolean): Promise<void> {
+  autostart = enabled;
+  render();
+
+  try {
+    autostart = await invoke<boolean>("set_autostart", { enabled });
+  } catch (error) {
+    console.error("failed to set autostart", error);
+  }
+  render();
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
   const favorite = target.dataset.favorite as FavoriteId | undefined;
@@ -72,6 +85,13 @@ document.addEventListener("click", (event) => {
   if (target.id === "refresh") void invoke("refresh_now");
   if (target.id === "close") void invoke("hide_panel");
   if (target.id === "quit") void invoke("quit_app");
+});
+
+document.addEventListener("change", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLInputElement && target.id === "autostart") {
+    void updateAutostart(target.checked);
+  }
 });
 
 document.addEventListener("keydown", (event) => {
@@ -97,6 +117,13 @@ void invoke<FavoriteId | null>("get_favorite")
     render();
   })
   .catch((error) => console.error("failed to load favorite", error));
+
+void invoke<boolean>("get_autostart")
+  .then((enabled) => {
+    autostart = enabled;
+    render();
+  })
+  .catch((error) => console.error("failed to load autostart", error));
 
 void listen<UsageSnapshot>("usage-updated", (event) => {
   latest = event.payload;

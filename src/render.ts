@@ -193,6 +193,7 @@ export function panelHtml(
   snapshot: UsageSnapshot,
   favorite: FavoriteId | null = null,
   expanded: ReadonlySet<ProviderId> = new Set(),
+  autostart = false,
 ): string {
   return `
     <div class="panel">
@@ -206,6 +207,10 @@ export function panelHtml(
       <main class="cards">
         ${snapshot.providers.map((usage) => card(usage, favorite, expanded)).join("")}
       </main>
+      <label class="toggle">
+        <input type="checkbox" id="autostart"${autostart ? " checked" : ""}>
+        <span>abrir ao iniciar o Mac</span>
+      </label>
       <footer class="panel-foot">
         <span>gerado ${formatRelativeTime(snapshot.generatedAt)} · ★ escolhe o harness do menu bar</span>
         <button id="quit" title="Encerrar o Code Usage">sair</button>
@@ -218,6 +223,7 @@ export function renderPanel(
   snapshot: UsageSnapshot,
   favorite: FavoriteId | null = null,
   expanded: ReadonlySet<ProviderId> = new Set(),
+  autostart = false,
 ): void {
-  root.innerHTML = panelHtml(snapshot, favorite, expanded);
+  root.innerHTML = panelHtml(snapshot, favorite, expanded, autostart);
 }
