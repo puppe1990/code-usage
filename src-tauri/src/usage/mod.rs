@@ -329,6 +329,12 @@ mod smoke_tests {
             }
         }
 
-        println!("tray title: {}", tray_title::format_title(&snapshot));
+        println!(
+            "tray title: {}",
+            tray_title::format_title(
+                &snapshot,
+                &crate::preferences::Preferences::default().favorites
+            )
+        );
     }
 }

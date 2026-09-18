@@ -188,6 +188,26 @@ body {
   color: #93a0b4;
 }
 
+.star {
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.star:hover {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.star.active {
+  color: #fbbf24;
+}
+
 .notice {
   margin-bottom: 8px;
   font-size: 11px;

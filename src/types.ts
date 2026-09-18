@@ -61,6 +61,13 @@ export interface OpenCodeGoLimits {
   fetchedAt: string;
 }
 
+export type FavoriteId =
+  | "grokWeekly"
+  | "commandCodePlan"
+  | "commandCodeTodayCost"
+  | "openCodeGoWeekly"
+  | "openCodeTodayCost";
+
 export interface ProviderUsage {
   provider: ProviderId;
   status: ProviderStatus;

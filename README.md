@@ -5,7 +5,7 @@
 
 A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **OpenCode** in one place.
 
-- **Menu bar title:** `46% · $0.42 · $1.03` → Grok weekly percentage · today's Command Code cost · today's OpenCode cost
+- **Menu bar title:** `46% · $0.42 · $1.03` by default — and you choose what goes there: every metric has a ★ button in the panel (Grok weekly, Command Code plan/today cost, OpenCode Go weekly, OpenCode today cost) and the title shows exactly the starred ones, in a fixed order
 - **Click the icon:** a panel with today / 7 days / 30 days per provider, tokens (input, output, cache), the Grok weekly window, the Command Code plan limits (plan, percentage used, requests, renewal and the 5-hour/weekly windows) and the OpenCode Go windows (rolling / weekly / monthly)
 - **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The only network calls read your plan limits (Command Code and OpenCode Go) using credentials the CLIs themselves store — see below.
 
@@ -31,6 +31,7 @@ Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_
 ## Behavior
 
 - The tray title refreshes every **60s** and the panel receives each new snapshot through an event.
+- The ★ stars are saved to `~/Library/Application Support/code-usage/preferences.json` (override with `CODE_USAGE_CONFIG`). With no star selected the menu bar shows the icon only.
 - Clicking the icon toggles the panel; it is positioned right below the icon and hides when it loses focus (Esc also closes it).
 - The icon has no native menu: on macOS a menu attached to the status item would open on any click and block the popover, so **Refresh** and **Quit** live inside the panel.
 - The whole snapshot is recomputed on every cycle: Command Code reads the transcripts (~90 files), Grok reads the CLI log and OpenCode runs a read-only `SELECT` on the `message` table.
