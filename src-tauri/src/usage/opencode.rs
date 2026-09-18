@@ -60,9 +60,8 @@ pub fn parse_message_data(time_created_ms: i64, data: &str) -> Option<UsageRecor
 
 fn open_read_only(path: &Path) -> Result<Connection, CollectError> {
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    Connection::open_with_flags(path, flags).map_err(|error| {
-        CollectError::Failed(format!("{}: {error}", path.display()))
-    })
+    Connection::open_with_flags(path, flags)
+        .map_err(|error| CollectError::Failed(format!("{}: {error}", path.display())))
 }
 
 pub fn collect(db: &Path, since: DateTime<Utc>) -> Result<Vec<UsageRecord>, CollectError> {
@@ -199,10 +198,7 @@ mod tests {
             }
         );
         assert!((record.cost_usd - 0.12).abs() < 1e-9);
-        assert_eq!(
-            record.timestamp.to_rfc3339(),
-            "2026-09-17T12:00:00+00:00"
-        );
+        assert_eq!(record.timestamp.to_rfc3339(), "2026-09-17T12:00:00+00:00");
     }
 
     #[test]

@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+echo "▶ prettier --check"
+npx --no-install prettier --check .
+
+echo "▶ testes do frontend (vitest)"
+npm test --silent
+
+echo "▶ testes do Rust (cargo test --release)"
+cargo test --release --quiet --manifest-path src-tauri/Cargo.toml
+
+echo "✔ pre-commit ok"

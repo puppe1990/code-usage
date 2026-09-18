@@ -178,13 +178,13 @@ mod tests {
         let data = collect(&fixture_path(), since()).unwrap();
 
         assert_eq!(data.records.len(), 3);
-        let tokens: TokenTotals = data
-            .records
-            .iter()
-            .fold(TokenTotals::default(), |mut acc, record| {
-                acc.add(&record.tokens);
-                acc
-            });
+        let tokens: TokenTotals =
+            data.records
+                .iter()
+                .fold(TokenTotals::default(), |mut acc, record| {
+                    acc.add(&record.tokens);
+                    acc
+                });
         assert_eq!(tokens.input, 2000);
         assert_eq!(tokens.cache_read, 1500);
         assert_eq!(tokens.output, 200);
@@ -195,12 +195,18 @@ mod tests {
         let recent_since = Utc.with_ymd_and_hms(2026, 9, 17, 0, 0, 0).single().unwrap();
         let data = collect(&fixture_path(), recent_since).unwrap();
         assert_eq!(data.records.len(), 2);
-        assert!(data.records.iter().all(|record| record.timestamp >= recent_since));
+        assert!(data
+            .records
+            .iter()
+            .all(|record| record.timestamp >= recent_since));
     }
 
     #[test]
     fn ignores_unrelated_and_malformed_lines() {
-        assert!(parse_line(r#"{"ts":"2026-09-17T13:00:05Z","msg":"slash.advertise","ctx":{"count":135}}"#).is_none());
+        assert!(parse_line(
+            r#"{"ts":"2026-09-17T13:00:05Z","msg":"slash.advertise","ctx":{"count":135}}"#
+        )
+        .is_none());
         assert!(parse_line("not json").is_none());
         assert!(parse_line(r#"{"ts":"2026-09-17T14:30:00Z","msg":"billing: fetched credits config","ctx":{"config":{"creditUsagePercent":46.0}}}"#).is_none());
     }

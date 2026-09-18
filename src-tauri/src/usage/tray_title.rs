@@ -88,24 +88,14 @@ mod tests {
 
     fn healthy_snapshot() -> UsageSnapshot {
         snapshot(vec![
-            provider(
-                Provider::CommandCode,
-                ProviderStatus::Ok,
-                0.42,
-                None,
-            ),
+            provider(Provider::CommandCode, ProviderStatus::Ok, 0.42, None),
             provider(
                 Provider::Grok,
                 ProviderStatus::Ok,
                 0.0,
                 Some(grok_limits(46.4)),
             ),
-            provider(
-                Provider::OpenCode,
-                ProviderStatus::Ok,
-                1.034,
-                None,
-            ),
+            provider(Provider::OpenCode, ProviderStatus::Ok, 1.034, None),
         ])
     }
 

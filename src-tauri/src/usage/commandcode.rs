@@ -149,7 +149,10 @@ mod tests {
 
     #[test]
     fn ignores_non_assistant_and_malformed_lines() {
-        assert!(parse_line(r#"{"type":"session","id":"s","timestamp":"2026-09-17T12:00:00Z"}"#).is_none());
+        assert!(
+            parse_line(r#"{"type":"session","id":"s","timestamp":"2026-09-17T12:00:00Z"}"#)
+                .is_none()
+        );
         assert!(parse_line(r#"{"type":"message","timestamp":"2026-09-17T12:00:00Z","message":{"role":"user"},"usage":{"costUsd":1.0}}"#).is_none());
         assert!(parse_line(r#"{"type":"message","timestamp":"2026-09-17T12:00:00Z","message":{"role":"assistant"}}"#).is_none());
         assert!(parse_line("not json at all").is_none());
@@ -168,7 +171,11 @@ mod tests {
     fn collects_every_transcript_and_skips_checkpoints() {
         let records = collect(&fixture_root()).expect("fixture root is readable");
 
-        assert_eq!(records.len(), 5, "2 today + 3 older, checkpoint file ignored");
+        assert_eq!(
+            records.len(),
+            5,
+            "2 today + 3 older, checkpoint file ignored"
+        );
         assert!(
             records.iter().all(|record| record.cost_usd < 100.0),
             "checkpoint usage must not be collected"
@@ -198,9 +205,6 @@ mod tests {
     fn missing_root_reports_not_found() {
         let missing = fixture_root().join("does-not-exist");
         let error = collect(&missing).expect_err("missing root");
-        assert_eq!(
-            error,
-            CollectError::NotFound(missing.display().to_string())
-        );
+        assert_eq!(error, CollectError::NotFound(missing.display().to_string()));
     }
 }

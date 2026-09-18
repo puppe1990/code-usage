@@ -10,9 +10,21 @@ const snapshot: UsageSnapshot = {
     {
       provider: "commandCode",
       status: { state: "ok" },
-      today: { costUsd: 0.64, tokens: { input: 1000, output: 100, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 3 },
-      last7d: { costUsd: 10.35, tokens: { input: 2000, output: 200, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 9 },
-      last30d: { costUsd: 57.21, tokens: { input: 3000, output: 300, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 30 },
+      today: {
+        costUsd: 0.64,
+        tokens: { input: 1000, output: 100, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 3,
+      },
+      last7d: {
+        costUsd: 10.35,
+        tokens: { input: 2000, output: 200, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 9,
+      },
+      last30d: {
+        costUsd: 57.21,
+        tokens: { input: 3000, output: 300, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 30,
+      },
       lastRecordAt: new Date().toISOString(),
       commandCode: {
         plan: "GOAT",
@@ -33,9 +45,21 @@ const snapshot: UsageSnapshot = {
     {
       provider: "grok",
       status: { state: "ok" },
-      today: { costUsd: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 2 },
-      last7d: { costUsd: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 2 },
-      last30d: { costUsd: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 2 },
+      today: {
+        costUsd: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 2,
+      },
+      last7d: {
+        costUsd: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 2,
+      },
+      last30d: {
+        costUsd: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 2,
+      },
       grok: {
         creditUsagePercent: 77,
         periodStart: new Date().toISOString(),
@@ -47,9 +71,21 @@ const snapshot: UsageSnapshot = {
     {
       provider: "openCode",
       status: { state: "notFound", path: "/tmp/missing.db" },
-      today: { costUsd: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 0 },
-      last7d: { costUsd: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 0 },
-      last30d: { costUsd: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, records: 0 },
+      today: {
+        costUsd: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 0,
+      },
+      last7d: {
+        costUsd: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 0,
+      },
+      last30d: {
+        costUsd: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 0,
+      },
     },
   ],
 };

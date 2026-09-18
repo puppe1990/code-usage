@@ -1,1 +1,21 @@
-{"success":true,"data":{"id":"sub_fixture","status":"active","userId":"user_fixture","orgId":null,"createdAt":"2026-09-02T13:05:24.000Z","priceId":"price_fixture","metadata":{"commandCode":"true"},"quantity":1,"cancelAtPeriodEnd":false,"currentPeriodStart":"2026-09-10T15:54:42.000Z","currentPeriodEnd":"2026-10-10T15:54:42.000Z","endedAt":null,"cancelAt":null,"canceledAt":null,"planId":"individual-goat","pendingPhase":null}}
+{
+  "success": true,
+  "data": {
+    "id": "sub_fixture",
+    "status": "active",
+    "userId": "user_fixture",
+    "orgId": null,
+    "createdAt": "2026-09-02T13:05:24.000Z",
+    "priceId": "price_fixture",
+    "metadata": { "commandCode": "true" },
+    "quantity": 1,
+    "cancelAtPeriodEnd": false,
+    "currentPeriodStart": "2026-09-10T15:54:42.000Z",
+    "currentPeriodEnd": "2026-10-10T15:54:42.000Z",
+    "endedAt": null,
+    "cancelAt": null,
+    "canceledAt": null,
+    "planId": "individual-goat",
+    "pendingPhase": null
+  }
+}
