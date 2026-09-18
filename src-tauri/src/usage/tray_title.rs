@@ -29,13 +29,16 @@ fn provider(snapshot: &UsageSnapshot, provider: Provider) -> Option<&super::Prov
         .find(|usage| usage.provider == provider)
 }
 
-/// Grok exposes a single weekly window.
+/// Grok exposes a single weekly window; accounts that omit it fall back to the placeholder.
 fn grok_values(snapshot: &UsageSnapshot) -> Vec<String> {
     provider(snapshot, Provider::Grok)
         .filter(|usage| matches!(usage.status, ProviderStatus::Ok))
         .and_then(|usage| usage.grok.as_ref())
-        .map(|limits| window_value("W", limits.credit_usage_percent))
-        .map_or_else(|| vec![placeholder()], |value| vec![value])
+        .and_then(|limits| limits.credit_usage_percent)
+        .map_or_else(
+            || vec![placeholder()],
+            |value| vec![window_value("W", value)],
+        )
 }
 
 /// The billing period is monthly: that percentage is the plan usage the dashboard shows.
@@ -133,7 +136,7 @@ mod tests {
     fn grok_limits(percent: f64) -> GrokLimits {
         let start = Utc.with_ymd_and_hms(2026, 9, 17, 13, 0, 0).unwrap();
         GrokLimits {
-            credit_usage_percent: percent,
+            credit_usage_percent: Some(percent),
             period_start: start,
             period_end: start + chrono::Duration::days(7),
             tier: Some("SuperGrok Plus".to_string()),
@@ -374,6 +377,21 @@ mod tests {
             ProviderStatus::Ok,
             0.0,
             None,
+        )]);
+
+        assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "–");
+    }
+
+    #[test]
+    fn grok_without_percentage_renders_placeholder() {
+        let mut limits = grok_limits(0.0);
+        limits.credit_usage_percent = None;
+
+        let snapshot = snapshot(vec![provider(
+            Provider::Grok,
+            ProviderStatus::Ok,
+            0.0,
+            Some(limits),
         )]);
 
         assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "–");

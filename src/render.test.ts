@@ -145,6 +145,17 @@ describe("panelHtml", () => {
     expect(html).toContain("77% do período semanal · SuperGrok");
   });
 
+  it("recognizes the active account when it omits the weekly percentage", () => {
+    const switched = structuredClone(snapshot);
+    switched.providers[1].grok!.creditUsagePercent = null;
+    switched.providers[1].grok!.tier = "SuperGrok Plus";
+
+    const html = panelHtml(switched);
+
+    expect(html).toContain("Uso semanal não informado pela conta · SuperGrok Plus");
+    expect(html).not.toContain("77% do período semanal");
+  });
+
   it("renders each harness mark in its own card header", () => {
     const html = panelHtml(snapshot);
     const cards = html.split('<section class="card"').slice(1);
