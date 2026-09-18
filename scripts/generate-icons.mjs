@@ -122,8 +122,8 @@ function render(size, { background, foreground }) {
 const iconsDir = resolve(root, "src-tauri", "icons");
 mkdirSync(iconsDir, { recursive: true });
 
-function writeMark(name, height) {
-  const mark = renderMark(resolve(iconsDir, `${name}.svg`), height);
+function writeMark(name, height, options) {
+  const mark = renderMark(resolve(iconsDir, `${name}.svg`), height, options);
   writeFileSync(resolve(iconsDir, `${name}.png`), encodePng(mark.width, mark.height, mark.rgba));
 }
 
@@ -136,7 +136,9 @@ writeFileSync(
   encodePng(44, 44, render(44, { background: null, foreground: [0, 0, 0] })),
 );
 writeMark("command-code", 44);
-writeMark("opencode", 45);
+// the OpenCode tile and the light square merge into a solid block at menu bar size, so the tray
+// mark keeps only the frame around them
+writeMark("opencode", 45, { skip: ["#CFCECD"] });
 writeMark("grok", 44);
 
 console.log("icons written to", iconsDir);

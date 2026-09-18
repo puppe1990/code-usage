@@ -218,10 +218,12 @@ function flattenPath(d, steps = 14) {
 }
 
 /// Shapes that paint the mark: every path, except the ones explicitly filled with pure black — the
-/// tile behind a brand mark, which would become a solid square in a template image. `<defs>`,
-/// `<mask>` and `<clipPath>` never paint directly, so their paths are dropped.
-function markShapes(svg) {
+/// tile behind a brand mark, which would become a solid square in a template image — and any fill
+/// the caller asks to skip. `<defs>`, `<mask>` and `<clipPath>` never paint directly, so their
+/// paths are dropped.
+function markShapes(svg, skip = []) {
   const markup = svg.replace(/<(defs|mask|clipPath)\b[\s\S]*?<\/\1>/gi, "");
+  const skipped = ["#000", "#000000", "black", ...skip.map((fill) => fill.toLowerCase())];
   const root = markup.match(/<svg\b[^>]*>/i)?.[0] ?? "";
   const groups = [{ fill: attribute(root, "fill"), rule: attribute(root, "fill-rule") }];
   const shapes = [];
@@ -242,7 +244,7 @@ function markShapes(svg) {
     }
 
     const fill = (attribute(tag, "fill") ?? groups.at(-1).fill ?? "").toLowerCase();
-    if (["#000", "#000000", "black"].includes(fill)) continue;
+    if (skipped.includes(fill)) continue;
 
     const polygons = flattenPath(attribute(tag, "d") ?? "");
     if (polygons.length > 0) {
@@ -270,14 +272,14 @@ function contains(shape, x, y) {
 }
 
 /// Black mark on a transparent background, ready to be used as a macOS template image. The height
-/// drives the size; the width follows the viewBox aspect ratio.
-export function renderMark(svgPath, height) {
+/// drives the size; the width follows the viewBox aspect ratio. `skip` lists fills to leave out.
+export function renderMark(svgPath, height, { skip = [] } = {}) {
   const svg = readFileSync(svgPath, "utf8");
   const viewBox = (attribute(svg.match(/<svg\b[^>]*>/i)?.[0] ?? "", "viewBox") ?? "")
     .split(/\s+/)
     .map(Number);
   const width = Math.max(1, Math.round((height * viewBox[2]) / viewBox[3]));
-  const shapes = markShapes(svg);
+  const shapes = markShapes(svg, skip);
   const rgba = Buffer.alloc(width * height * 4);
   const step = 1 / 3;
 
