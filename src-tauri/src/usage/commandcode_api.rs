@@ -110,8 +110,13 @@ pub fn usage_percent(
 
 fn window_limit(value: &Value) -> Option<WindowLimit> {
     let used = value.get("used").and_then(|value| value.as_f64())?;
-    let cap = value.get("cap").and_then(|value| value.as_f64()).unwrap_or(0.0);
-    let reset_at = Utc.timestamp_millis_opt(value.get("resetAt")?.as_i64()?).single()?;
+    let cap = value
+        .get("cap")
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0);
+    let reset_at = Utc
+        .timestamp_millis_opt(value.get("resetAt")?.as_i64()?)
+        .single()?;
 
     Some(WindowLimit {
         percent_used: if cap > 0.0 {
@@ -135,10 +140,10 @@ fn parse_credits_total(
 ) -> f64 {
     let monthly = monthly_remaining.max(0.0);
     match (status, plan_credits) {
-        (Some("active"), Some(credits)) => credits.max(monthly) + purchased.max(0.0) + free.max(0.0),
-        _ => {
-            total_spent.max(0.0) + monthly + purchased.max(0.0) + free.max(0.0)
+        (Some("active"), Some(credits)) => {
+            credits.max(monthly) + purchased.max(0.0) + free.max(0.0)
         }
+        _ => total_spent.max(0.0) + monthly + purchased.max(0.0) + free.max(0.0),
     }
 }
 
@@ -152,8 +157,9 @@ pub fn parse_limits(
         .map_err(|error| CollectError::Failed(format!("usage/summary inválido: {error}")))?;
     let credits: Value = serde_json::from_str(credits)
         .map_err(|error| CollectError::Failed(format!("billing/credits inválido: {error}")))?;
-    let subscription: Value = serde_json::from_str(subscription)
-        .map_err(|error| CollectError::Failed(format!("billing/subscriptions inválido: {error}")))?;
+    let subscription: Value = serde_json::from_str(subscription).map_err(|error| {
+        CollectError::Failed(format!("billing/subscriptions inválido: {error}"))
+    })?;
 
     let credit_info = credits
         .get("credits")
@@ -283,21 +289,22 @@ pub fn fetch_limits(
     let base = base_url.trim_end_matches('/');
     let summary = get_json(&client, &format!("{base}/alpha/usage/summary"), token)?;
     let credits = get_json(&client, &format!("{base}/alpha/billing/credits"), token)?;
-    let subscription = get_json(&client, &format!("{base}/alpha/billing/subscriptions"), token)?;
+    let subscription = get_json(
+        &client,
+        &format!("{base}/alpha/billing/subscriptions"),
+        token,
+    )?;
 
     parse_limits(&summary, &credits, &subscription, now)
 }
 
 fn fresh_cache() -> Option<CommandCodeLimits> {
-    CACHE
-        .lock()
-        .ok()
-        .and_then(|guard| {
-            guard
-                .as_ref()
-                .filter(|cached| cached.fetched_at.elapsed() < CACHE_TTL)
-                .map(|cached| cached.limits.clone())
-        })
+    CACHE.lock().ok().and_then(|guard| {
+        guard
+            .as_ref()
+            .filter(|cached| cached.fetched_at.elapsed() < CACHE_TTL)
+            .map(|cached| cached.limits.clone())
+    })
 }
 
 pub fn cached_limits() -> Option<CommandCodeLimits> {

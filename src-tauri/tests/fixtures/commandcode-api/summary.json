@@ -1,1 +1,16 @@
-{"totalCount":7776,"totalCost":34.1027526312,"averageCost":0.004385642056481481,"successRate":99.96141975308642,"completedCount":7773,"failedCount":3,"totalTokensIn":1781890899,"totalTokensOut":5377765,"totalTokens":1787268664,"totalCredits":34.1027526312,"totalFreeCredits":0,"totalMonthlyCredits":34.1027526312,"totalPurchasedCredits":0,"periodBasis":"billing-period"}
+{
+  "totalCount": 7776,
+  "totalCost": 34.1027526312,
+  "averageCost": 0.004385642056481481,
+  "successRate": 99.96141975308642,
+  "completedCount": 7773,
+  "failedCount": 3,
+  "totalTokensIn": 1781890899,
+  "totalTokensOut": 5377765,
+  "totalTokens": 1787268664,
+  "totalCredits": 34.1027526312,
+  "totalFreeCredits": 0,
+  "totalMonthlyCredits": 34.1027526312,
+  "totalPurchasedCredits": 0,
+  "periodBasis": "billing-period"
+}

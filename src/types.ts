@@ -15,9 +15,7 @@ export interface UsageWindow {
 }
 
 export type ProviderStatus =
-  | { state: "ok" }
-  | { state: "notFound"; path: string }
-  | { state: "error"; message: string };
+  { state: "ok" } | { state: "notFound"; path: string } | { state: "error"; message: string };
 
 export interface GrokLimits {
   creditUsagePercent: number;

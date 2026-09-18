@@ -9,7 +9,10 @@ pub struct Windows {
 }
 
 pub fn start_of_day(now: DateTime<Local>) -> DateTime<Utc> {
-    let naive = now.date_naive().and_hms_opt(0, 0, 0).expect("valid midnight");
+    let naive = now
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .expect("valid midnight");
     now.timezone()
         .from_local_datetime(&naive)
         .earliest()

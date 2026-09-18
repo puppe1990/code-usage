@@ -1,5 +1,7 @@
 # Code Usage
 
+[![CI](https://github.com/puppe1990/code-usage/actions/workflows/ci.yml/badge.svg)](https://github.com/puppe1990/code-usage/actions/workflows/ci.yml)
+
 App de barra de menu (macOS) que mostra o usage do **Command Code**, **Grok** e **OpenCode** em um só lugar.
 
 - **Título na barra:** `46% · $0.42 · $1.03` → percentual semanal do Grok · custo de hoje do Command Code · custo de hoje do OpenCode
@@ -8,12 +10,12 @@ App de barra de menu (macOS) que mostra o usage do **Command Code**, **Grok** e 
 
 ## Fontes de dados
 
-| Provider | Fonte | O que é lido |
-| --- | --- | --- |
-| Command Code | `~/.commandcode/projects/<slug>/<session>.jsonl` | linhas de mensagem do assistant com `usage.costUsd` e tokens |
+| Provider               | Fonte                                                                                                   | O que é lido                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Command Code           | `~/.commandcode/projects/<slug>/<session>.jsonl`                                                        | linhas de mensagem do assistant com `usage.costUsd` e tokens                                                                                                                                    |
 | Command Code (limites) | `api.commandcode.ai` — `/alpha/usage/summary`, `/alpha/billing/credits`, `/alpha/billing/subscriptions` | plano, % do plano usado, requests do período, saldo de créditos e janelas de 5h/semanal (mesmos endpoints que o `/usage` do CLI usa, autenticados com o `apiKey` do `~/.commandcode/auth.json`) |
-| Grok | `~/.grok/logs/unified.jsonl` | eventos `billing: fetched credits config` (percentual do período) e `shell.turn.inference_done` (tokens) |
-| OpenCode | `~/.local/share/opencode/opencode.db` (SQLite, somente leitura) | tabela `message`, JSON com `cost` e `tokens` |
+| Grok                   | `~/.grok/logs/unified.jsonl`                                                                            | eventos `billing: fetched credits config` (percentual do período) e `shell.turn.inference_done` (tokens)                                                                                        |
+| OpenCode               | `~/.local/share/opencode/opencode.db` (SQLite, somente leitura)                                         | tabela `message`, JSON com `cost` e `tokens`                                                                                                                                                    |
 
 Caminhos podem ser sobrescritos por variáveis de ambiente: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`.
 
@@ -42,6 +44,12 @@ npm test             # testes do frontend (Vitest)
 ```
 
 A porta 1421 é usada no dev porque a 1420 está ocupada por outro projeto (video-editor). A janela precisa da capability `core:default` em `src-tauri/capabilities/default.json` para usar `listen`/`invoke`.
+
+## Qualidade (prettier, testes e CI)
+
+- `npm run format` formata tudo com prettier (`npm run format:check` só verifica).
+- **pre-commit** em `.githooks/pre-commit`, ativado automaticamente pelo `npm install` (script `prepare` que aponta `core.hooksPath`): roda `prettier --check`, os testes do frontend e `cargo test --release`. Para pular numa emergência: `git commit --no-verify`.
+- **CI** em `.github/workflows/ci.yml`: job de frontend no ubuntu (prettier, `tsc --noEmit`, vitest) e job de Rust no macOS (`cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --release`).
 
 Para regenerar os ícones (fonte desenhada em `scripts/generate-icons.mjs`):
 

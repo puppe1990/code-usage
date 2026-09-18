@@ -197,24 +197,28 @@ pub fn snapshot(now: DateTime<Local>) -> UsageSnapshot {
 
     let command_code_limits = commandcode_api::cached_limits();
     providers.push(match commandcode::collect(&commandcode::root_path()) {
-        Ok(records) => {
-            ProviderUsage::from_records(Provider::CommandCode, &records, now, None, command_code_limits)
-        }
+        Ok(records) => ProviderUsage::from_records(
+            Provider::CommandCode,
+            &records,
+            now,
+            None,
+            command_code_limits,
+        ),
         Err(error) => ProviderUsage::unavailable(Provider::CommandCode, error),
     });
 
     let since = window::start_of_day(now) - Duration::days(31);
     providers.push(match grok::collect(&grok::log_path(), since) {
-        Ok(data) => ProviderUsage::from_records(Provider::Grok, &data.records, now, data.limits, None),
+        Ok(data) => {
+            ProviderUsage::from_records(Provider::Grok, &data.records, now, data.limits, None)
+        }
         Err(error) => ProviderUsage::unavailable(Provider::Grok, error),
     });
 
-    providers.push(
-        match opencode::collect(&opencode::db_path(), since) {
-            Ok(records) => ProviderUsage::from_records(Provider::OpenCode, &records, now, None, None),
-            Err(error) => ProviderUsage::unavailable(Provider::OpenCode, error),
-        },
-    );
+    providers.push(match opencode::collect(&opencode::db_path(), since) {
+        Ok(records) => ProviderUsage::from_records(Provider::OpenCode, &records, now, None, None),
+        Err(error) => ProviderUsage::unavailable(Provider::OpenCode, error),
+    });
 
     UsageSnapshot {
         generated_at: Utc::now(),
