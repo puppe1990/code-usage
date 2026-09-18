@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { renderPanel } from "./render";
-import type { FavoriteId, UsageSnapshot } from "./types";
+import type { FavoriteId, ProviderId, UsageSnapshot } from "./types";
 import "./styles.css";
 
 function requireRoot(): HTMLDivElement {
@@ -13,10 +13,11 @@ function requireRoot(): HTMLDivElement {
 const root = requireRoot();
 let favorite: FavoriteId | null = null;
 let latest: UsageSnapshot | null = null;
+const expanded = new Set<ProviderId>();
 
 function render(): void {
   if (latest) {
-    renderPanel(root, latest, favorite);
+    renderPanel(root, latest, favorite, expanded);
   }
 }
 
@@ -46,6 +47,15 @@ async function toggleFavorite(next: FavoriteId): Promise<void> {
   render();
 }
 
+function toggleCollapse(provider: ProviderId): void {
+  if (expanded.has(provider)) {
+    expanded.delete(provider);
+  } else {
+    expanded.add(provider);
+  }
+  render();
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
   const favorite = target.dataset.favorite as FavoriteId | undefined;
@@ -54,13 +64,29 @@ document.addEventListener("click", (event) => {
     void toggleFavorite(favorite);
     return;
   }
+  const header = target.closest<HTMLElement>("[data-collapse]");
+  if (header?.dataset.collapse) {
+    toggleCollapse(header.dataset.collapse as ProviderId);
+    return;
+  }
   if (target.id === "refresh") void invoke("refresh_now");
   if (target.id === "close") void invoke("hide_panel");
   if (target.id === "quit") void invoke("quit_app");
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") void invoke("hide_panel");
+  if (event.key === "Escape") {
+    void invoke("hide_panel");
+    return;
+  }
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (!(event.target instanceof HTMLElement)) return;
+
+  const header = event.target.closest<HTMLElement>("[data-collapse]");
+  if (!header?.dataset.collapse) return;
+
+  event.preventDefault();
+  toggleCollapse(header.dataset.collapse as ProviderId);
 });
 
 root.innerHTML = '<div class="loading">carregando usage…</div>';

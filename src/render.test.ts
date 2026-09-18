@@ -156,6 +156,32 @@ describe("panelHtml", () => {
     expect(html.match(/class="provider-logo"/g) ?? []).toHaveLength(3);
   });
 
+  it("collapses the harness cards unless they are expanded", () => {
+    const collapsed = panelHtml(snapshot);
+
+    expect(collapsed.match(/class="card expanded"/g) ?? []).toHaveLength(0);
+    expect(collapsed.match(/aria-expanded="false"/g) ?? []).toHaveLength(3);
+
+    const expanded = panelHtml(snapshot, null, new Set(["openCode"]));
+
+    expect(expanded).toContain('class="card expanded" data-provider="openCode"');
+    expect(expanded.match(/class="card expanded"/g) ?? []).toHaveLength(1);
+    expect(expanded.match(/aria-expanded="true"/g) ?? []).toHaveLength(1);
+  });
+
+  it("keeps the totals inside the collapsible body of each card", () => {
+    const cards = panelHtml(snapshot).split('<section class="card"').slice(1);
+
+    expect(cards).toHaveLength(3);
+    for (const markup of cards) {
+      const body = markup.slice(markup.indexOf('<div class="card-body">'));
+
+      expect(body).toContain("hoje");
+      expect(body).toContain("7 dias");
+      expect(body).toContain("30 dias");
+    }
+  });
+
   it("renders one star per harness in the card header", () => {
     const html = panelHtml(snapshot, null);
 

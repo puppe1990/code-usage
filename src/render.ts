@@ -13,6 +13,7 @@ import type {
   CommandCodeLimits,
   FavoriteId,
   OpenCodeGoLimits,
+  ProviderId,
   ProviderUsage,
   TokenTotals,
   UsageSnapshot,
@@ -160,28 +161,39 @@ function statusNotice(usage: ProviderUsage): string {
   return "";
 }
 
-function card(usage: ProviderUsage, favorite: FavoriteId | null): string {
+function card(
+  usage: ProviderUsage,
+  favorite: FavoriteId | null,
+  expanded: ReadonlySet<ProviderId>,
+): string {
   const showCost = usage.provider !== "grok";
+  const isExpanded = expanded.has(usage.provider);
   const updated = usage.lastRecordAt
     ? `atualizado ${formatRelativeTime(usage.lastRecordAt)}`
     : "sem dados";
   return `
-    <section class="card" data-provider="${usage.provider}">
-      <header class="card-head">
+    <section class="card${isExpanded ? " expanded" : ""}" data-provider="${usage.provider}">
+      <header class="card-head" data-collapse="${usage.provider}" role="button" tabindex="0" aria-expanded="${isExpanded}">
         <h2>${providerHeading(usage.provider)}</h2>
-        <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}</span>
+        <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}<span class="chevron" aria-hidden="true">▸</span></span>
       </header>
       ${statusNotice(usage)}
       ${usage.commandCode ? commandCodeSection(usage.commandCode) : ""}
       ${usage.openCodeGo ? openCodeGoSection(usage.openCodeGo) : ""}
       ${grokSection(usage)}
-      ${rows(usage.today, showCost, "hoje")}
-      ${rows(usage.last7d, showCost, "7 dias")}
-      ${rows(usage.last30d, showCost, "30 dias")}
+      <div class="card-body">
+        ${rows(usage.today, showCost, "hoje")}
+        ${rows(usage.last7d, showCost, "7 dias")}
+        ${rows(usage.last30d, showCost, "30 dias")}
+      </div>
     </section>`;
 }
 
-export function panelHtml(snapshot: UsageSnapshot, favorite: FavoriteId | null = null): string {
+export function panelHtml(
+  snapshot: UsageSnapshot,
+  favorite: FavoriteId | null = null,
+  expanded: ReadonlySet<ProviderId> = new Set(),
+): string {
   return `
     <div class="panel">
       <header class="panel-head">
@@ -192,7 +204,7 @@ export function panelHtml(snapshot: UsageSnapshot, favorite: FavoriteId | null =
         </span>
       </header>
       <main class="cards">
-        ${snapshot.providers.map((usage) => card(usage, favorite)).join("")}
+        ${snapshot.providers.map((usage) => card(usage, favorite, expanded)).join("")}
       </main>
       <footer class="panel-foot">
         <span>gerado ${formatRelativeTime(snapshot.generatedAt)} · ★ escolhe o harness do menu bar</span>
@@ -205,6 +217,7 @@ export function renderPanel(
   root: HTMLElement,
   snapshot: UsageSnapshot,
   favorite: FavoriteId | null = null,
+  expanded: ReadonlySet<ProviderId> = new Set(),
 ): void {
-  root.innerHTML = panelHtml(snapshot, favorite);
+  root.innerHTML = panelHtml(snapshot, favorite, expanded);
 }
