@@ -1,12 +1,16 @@
 //! One `ProviderUsage` per CLI, built from the local transcripts/logs/database plus the
 //! plan-limit caches. `snapshot` is the single entry point the rest of the app calls.
 
+mod cache;
 pub mod commandcode;
 pub mod commandcode_api;
-mod commandcode_limits;
+mod commandcode_payload;
 pub mod grok;
+mod limits_http;
 pub mod opencode;
 pub mod opencode_go;
+#[cfg(test)]
+mod test_server;
 pub mod tray_title;
 pub mod window;
 

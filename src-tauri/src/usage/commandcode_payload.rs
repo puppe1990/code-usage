@@ -30,35 +30,53 @@ pub fn plan_monthly_credits(plan_id: &str) -> Option<f64> {
         .map(|(_, _, credits)| *credits)
 }
 
-pub fn usage_percent(
-    plan_credits: Option<f64>,
-    status: Option<&str>,
+/// Credit balance fields shared by the usage percentage and the total credit calculations.
+#[derive(Debug, Clone, Copy)]
+struct CreditTotals {
     monthly_remaining: f64,
     purchased: f64,
     free: f64,
+}
+
+impl CreditTotals {
+    /// Clamps every field at zero so negative API values cannot skew the pool.
+    fn positive(self) -> Self {
+        Self {
+            monthly_remaining: self.monthly_remaining.max(0.0),
+            purchased: self.purchased.max(0.0),
+            free: self.free.max(0.0),
+        }
+    }
+
+    fn remaining(self) -> f64 {
+        self.monthly_remaining + self.purchased + self.free
+    }
+
+    /// Credits available this period: the plan allowance when active, else what was spent.
+    fn total_pool(self, status: Option<&str>, plan_credits: Option<f64>, total_spent: f64) -> f64 {
+        match (status, plan_credits) {
+            (Some("active"), Some(credits)) => {
+                credits.max(self.monthly_remaining) + self.purchased + self.free
+            }
+            _ => total_spent.max(0.0) + self.remaining(),
+        }
+    }
+}
+
+fn usage_percent(
+    totals: CreditTotals,
+    status: Option<&str>,
+    plan_credits: Option<f64>,
     total_spent: f64,
 ) -> f64 {
-    let monthly = monthly_remaining.max(0.0);
-    let purchased = purchased.max(0.0);
-    let free = free.max(0.0);
-    let remaining = monthly + purchased + free;
-
-    let active_plan_credits = if status == Some("active") {
-        plan_credits
-    } else {
-        None
-    };
-
-    let total_pool = match active_plan_credits {
-        Some(credits) => credits.max(monthly) + purchased + free,
-        None => total_spent.max(0.0) + remaining,
-    };
+    let totals = totals.positive();
+    let total_pool = totals.total_pool(status, plan_credits, total_spent);
 
     if total_pool <= 0.0 {
         return 0.0;
     }
 
-    (((total_pool - remaining) / total_pool) * 100.0).clamp(0.0, 100.0)
+    (((total_pool - totals.remaining()) / total_pool) * 100.0).clamp(0.0, 100.0)
 }
 
 fn window_limit(value: &Value) -> Option<WindowLimit> {
@@ -81,30 +99,6 @@ fn window_limit(value: &Value) -> Option<WindowLimit> {
         cap,
         reset_at,
     })
-}
-
-fn parse_credits_total(
-    status: Option<&str>,
-    plan_credits: Option<f64>,
-    monthly_remaining: f64,
-    purchased: f64,
-    free: f64,
-    total_spent: f64,
-) -> f64 {
-    let monthly = monthly_remaining.max(0.0);
-    match (status, plan_credits) {
-        (Some("active"), Some(credits)) => {
-            credits.max(monthly) + purchased.max(0.0) + free.max(0.0)
-        }
-        _ => total_spent.max(0.0) + monthly + purchased.max(0.0) + free.max(0.0),
-    }
-}
-
-/// Credit balance fields shared by the usage percent and total calculations.
-struct CreditTotals {
-    monthly_remaining: f64,
-    purchased: f64,
-    free: f64,
 }
 
 /// Plan fields the subscription payload carries.
@@ -185,6 +179,19 @@ fn days_until(renews_at: DateTime<Utc>, now: DateTime<Utc>) -> i64 {
         .max(0.0) as i64
 }
 
+fn credit_windows(credits_json: &Value) -> (Option<WindowLimit>, Option<WindowLimit>) {
+    let window_limits = credits_json
+        .get("windowLimits")
+        .filter(|value| !value.is_null());
+    let read = |key: &str| {
+        window_limits
+            .and_then(|value| value.get(key))
+            .and_then(window_limit)
+    };
+
+    (read("fiveHour"), read("weekly"))
+}
+
 /// Turns the three Command Code API payloads into the plan limits the panel shows.
 pub(crate) fn parse_limits(
     summary: &str,
@@ -196,7 +203,7 @@ pub(crate) fn parse_limits(
     let credits_json = parse_payload("billing/credits", credits)?;
     let subscription_json = parse_payload("billing/subscriptions", subscription)?;
 
-    let totals = credit_totals(&credits_json)?;
+    let totals = credit_totals(&credits_json)?.positive();
     let subscription = subscription_info(&subscription_json);
     let summary = summary_info(&summary_json);
 
@@ -204,26 +211,8 @@ pub(crate) fn parse_limits(
         .plan_id
         .as_deref()
         .and_then(plan_monthly_credits);
-    let window_limits = credits_json
-        .get("windowLimits")
-        .filter(|value| !value.is_null());
     let status = subscription.status.as_deref();
-    let usage = usage_percent(
-        plan_credits,
-        status,
-        totals.monthly_remaining,
-        totals.purchased,
-        totals.free,
-        summary.total_spent,
-    );
-    let credits_total = parse_credits_total(
-        status,
-        plan_credits,
-        totals.monthly_remaining,
-        totals.purchased,
-        totals.free,
-        summary.total_spent,
-    );
+    let (five_hour, weekly) = credit_windows(&credits_json);
 
     Ok(CommandCodeLimits {
         plan: subscription
@@ -233,21 +222,15 @@ pub(crate) fn parse_limits(
             .map(str::to_string),
         plan_id: subscription.plan_id,
         status: subscription.status.clone(),
-        usage_percent: usage,
-        credits_total,
-        credits_remaining: totals.monthly_remaining.max(0.0)
-            + totals.purchased.max(0.0)
-            + totals.free.max(0.0),
+        usage_percent: usage_percent(totals, status, plan_credits, summary.total_spent),
+        credits_total: totals.total_pool(status, plan_credits, summary.total_spent),
+        credits_remaining: totals.remaining(),
         requests_this_period: summary.requests_this_period,
         period_basis: summary.period_basis,
         renews_at: subscription.renews_at,
         days_to_renew: subscription.renews_at.map(|end| days_until(end, now)),
-        five_hour: window_limits
-            .and_then(|value| value.get("fiveHour"))
-            .and_then(window_limit),
-        weekly: window_limits
-            .and_then(|value| value.get("weekly"))
-            .and_then(window_limit),
+        five_hour,
+        weekly,
         fetched_at: now,
     })
 }

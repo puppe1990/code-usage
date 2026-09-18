@@ -1,24 +1,18 @@
 //! OpenCode Go plan limits from `opencode.ai/zen/go/v1/usage`, authenticated with the
 //! `opencode-go` key from `~/.local/share/opencode/auth.json` and cached for 5 minutes.
 
+use super::cache::LimitsCache;
+use super::limits_http::{self, get_bearer_json};
 use super::{CollectError, OpenCodeGoLimits, OpenCodeGoWindow};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub const DEFAULT_USAGE_URL: &str = "https://opencode.ai/zen/go/v1/usage";
 pub const CACHE_TTL: Duration = Duration::from_secs(300);
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-#[derive(Debug, Clone)]
-struct CachedLimits {
-    fetched_at: Instant,
-    limits: OpenCodeGoLimits,
-}
-
-static CACHE: Mutex<Option<CachedLimits>> = Mutex::new(None);
+static CACHE: LimitsCache<OpenCodeGoLimits> = LimitsCache::new();
 
 pub fn default_auth_path() -> PathBuf {
     super::opencode::default_db_path()
@@ -60,7 +54,7 @@ pub fn read_api_key(path: &Path) -> Result<String, CollectError> {
         .ok_or_else(|| CollectError::Failed(format!("{}: sem api key", path.display())))
 }
 
-fn window(value: Option<&Value>) -> Option<OpenCodeGoWindow> {
+fn parse_window(value: Option<&Value>) -> Option<OpenCodeGoWindow> {
     let value = value?;
     let percent = value.get("percent").and_then(|percent| percent.as_f64())?;
     let resets_at = value
@@ -95,88 +89,52 @@ pub fn parse_usage(body: &str, now: DateTime<Utc>) -> Result<OpenCodeGoLimits, C
         })?;
 
     Ok(OpenCodeGoLimits {
-        rolling: window(usage.get("rolling")),
-        weekly: window(usage.get("weekly")),
-        monthly: window(usage.get("monthly")),
+        rolling: parse_window(usage.get("rolling")),
+        weekly: parse_window(usage.get("weekly")),
+        monthly: parse_window(usage.get("monthly")),
         fetched_at: now,
     })
 }
 
 /// Fetches the usage endpoint and parses it (see `parse_usage`).
 pub fn fetch_limits(
+    client: &reqwest::blocking::Client,
     url: &str,
     api_key: &str,
     now: DateTime<Utc>,
 ) -> Result<OpenCodeGoLimits, CollectError> {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(REQUEST_TIMEOUT)
-        .user_agent(concat!("code-usage/", env!("CARGO_PKG_VERSION")))
-        .build()
-        .map_err(|error| CollectError::Failed(error.to_string()))?;
-
-    let response = client
-        .get(url)
-        .header("Authorization", format!("Bearer {api_key}"))
-        .header("Accept", "application/json")
-        .send()
-        .map_err(|error| CollectError::Failed(format!("{url}: {error}")))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .map_err(|error| CollectError::Failed(format!("{url}: {error}")))?;
-
-    if !status.is_success() {
-        return Err(CollectError::Failed(format!("{url}: HTTP {status}")));
-    }
+    let body = get_bearer_json(client, url, api_key)?;
 
     parse_usage(&body, now)
 }
 
-fn fresh_cache() -> Option<OpenCodeGoLimits> {
-    CACHE.lock().ok().and_then(|guard| {
-        guard
-            .as_ref()
-            .filter(|cached| cached.fetched_at.elapsed() < CACHE_TTL)
-            .map(|cached| cached.limits.clone())
-    })
-}
-
 /// Last fetched limits, however old; `None` before the first successful fetch.
 pub fn cached_limits() -> Option<OpenCodeGoLimits> {
-    CACHE
-        .lock()
-        .ok()
-        .and_then(|guard| guard.as_ref().map(|cached| cached.limits.clone()))
+    CACHE.last()
 }
 
 /// Refreshes when the 5-minute cache is stale, keeping the last value on failure.
 pub fn refresh_cache() -> Option<OpenCodeGoLimits> {
-    if let Some(limits) = fresh_cache() {
-        return Some(limits);
-    }
-
-    let api_key = read_api_key(&auth_path()).ok()?;
-
-    match fetch_limits(&usage_url(), &api_key, Utc::now()) {
-        Ok(limits) => {
-            if let Ok(mut guard) = CACHE.lock() {
-                *guard = Some(CachedLimits {
-                    fetched_at: Instant::now(),
-                    limits: limits.clone(),
-                });
-            }
-            Some(limits)
-        }
-        Err(_) => cached_limits(),
-    }
+    CACHE.refresh(CACHE_TTL, || {
+        let api_key = read_api_key(&auth_path()).ok()?;
+        let client = limits_http::client().ok()?;
+        fetch_limits(&client, &usage_url(), &api_key, Utc::now()).ok()
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::usage::test_server;
     use std::fs;
     use tempfile::TempDir;
+
+    fn test_client() -> reqwest::blocking::Client {
+        reqwest::blocking::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("test client")
+    }
 
     fn fixture(name: &str) -> String {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -254,5 +212,24 @@ mod tests {
             read_api_key(&dir.path().join("missing.json")),
             Err(CollectError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn fetches_and_parses_the_usage_endpoint() {
+        let base = test_server::spawn(vec![(200, fixture("usage.json"))]);
+
+        let limits = fetch_limits(&test_client(), &base, "go-key", fixed_now()).expect("limits");
+
+        assert_eq!(limits.rolling.expect("rolling window").percent, 11.0);
+    }
+
+    #[test]
+    fn reports_an_endpoint_failure_with_its_url() {
+        let base = test_server::spawn(vec![(401, "{}".to_string())]);
+
+        let error =
+            fetch_limits(&test_client(), &base, "go-key", fixed_now()).expect_err("http error");
+
+        assert!(matches!(error, CollectError::Failed(message) if message.contains("HTTP 401")));
     }
 }

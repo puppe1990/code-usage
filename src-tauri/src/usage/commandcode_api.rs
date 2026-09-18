@@ -1,22 +1,16 @@
-use super::commandcode_limits::parse_limits;
+use super::cache::LimitsCache;
+use super::commandcode_payload::parse_limits;
+use super::limits_http::{self, get_bearer_json};
 use super::{CollectError, CommandCodeLimits};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub const DEFAULT_BASE_URL: &str = "https://api.commandcode.ai";
 pub const CACHE_TTL: Duration = Duration::from_secs(300);
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-#[derive(Debug, Clone)]
-struct CachedLimits {
-    fetched_at: Instant,
-    limits: CommandCodeLimits,
-}
-
-static CACHE: Mutex<Option<CachedLimits>> = Mutex::new(None);
+static CACHE: LimitsCache<CommandCodeLimits> = LimitsCache::new();
 
 pub fn default_auth_path() -> PathBuf {
     dirs::home_dir()
@@ -53,46 +47,17 @@ pub fn read_token(path: &Path) -> Result<String, CollectError> {
         .ok_or_else(|| CollectError::Failed(format!("{}: sem apiKey", path.display())))
 }
 
-fn get_json(
-    client: &reqwest::blocking::Client,
-    url: &str,
-    token: &str,
-) -> Result<String, CollectError> {
-    let response = client
-        .get(url)
-        .header("Authorization", format!("Bearer {token}"))
-        .header("Accept", "application/json")
-        .send()
-        .map_err(|error| CollectError::Failed(format!("{url}: {error}")))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .map_err(|error| CollectError::Failed(format!("{url}: {error}")))?;
-
-    if !status.is_success() {
-        return Err(CollectError::Failed(format!("{url}: HTTP {status}")));
-    }
-
-    Ok(body)
-}
-
 pub fn fetch_limits(
+    client: &reqwest::blocking::Client,
     base_url: &str,
     token: &str,
     now: DateTime<Utc>,
 ) -> Result<CommandCodeLimits, CollectError> {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(REQUEST_TIMEOUT)
-        .user_agent(concat!("code-usage/", env!("CARGO_PKG_VERSION")))
-        .build()
-        .map_err(|error| CollectError::Failed(error.to_string()))?;
-
     let base = base_url.trim_end_matches('/');
-    let summary = get_json(&client, &format!("{base}/alpha/usage/summary"), token)?;
-    let credits = get_json(&client, &format!("{base}/alpha/billing/credits"), token)?;
-    let subscription = get_json(
-        &client,
+    let summary = get_bearer_json(client, &format!("{base}/alpha/usage/summary"), token)?;
+    let credits = get_bearer_json(client, &format!("{base}/alpha/billing/credits"), token)?;
+    let subscription = get_bearer_json(
+        client,
         &format!("{base}/alpha/billing/subscriptions"),
         token,
     )?;
@@ -100,48 +65,32 @@ pub fn fetch_limits(
     parse_limits(&summary, &credits, &subscription, now)
 }
 
-fn fresh_cache() -> Option<CommandCodeLimits> {
-    CACHE.lock().ok().and_then(|guard| {
-        guard
-            .as_ref()
-            .filter(|cached| cached.fetched_at.elapsed() < CACHE_TTL)
-            .map(|cached| cached.limits.clone())
-    })
-}
-
 pub fn cached_limits() -> Option<CommandCodeLimits> {
-    CACHE
-        .lock()
-        .ok()
-        .and_then(|guard| guard.as_ref().map(|cached| cached.limits.clone()))
+    CACHE.last()
 }
 
 pub fn refresh_cache() -> Option<CommandCodeLimits> {
-    if let Some(limits) = fresh_cache() {
-        return Some(limits);
-    }
-
-    let token = read_token(&auth_path()).ok()?;
-
-    match fetch_limits(&base_url(), &token, Utc::now()) {
-        Ok(limits) => {
-            if let Ok(mut guard) = CACHE.lock() {
-                *guard = Some(CachedLimits {
-                    fetched_at: Instant::now(),
-                    limits: limits.clone(),
-                });
-            }
-            Some(limits)
-        }
-        Err(_) => cached_limits(),
-    }
+    CACHE.refresh(CACHE_TTL, || {
+        let token = read_token(&auth_path()).ok()?;
+        let client = limits_http::client().ok()?;
+        fetch_limits(&client, &base_url(), &token, Utc::now()).ok()
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::usage::test_server;
+    use chrono::TimeZone;
     use std::fs;
     use tempfile::TempDir;
+
+    fn test_client() -> reqwest::blocking::Client {
+        reqwest::blocking::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("test client")
+    }
 
     fn fixture(name: &str) -> String {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -163,5 +112,32 @@ mod tests {
             read_token(&dir.path().join("missing.json")),
             Err(CollectError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn fetches_and_parses_the_three_endpoints() {
+        let base = test_server::spawn(vec![
+            (200, fixture("summary.json")),
+            (200, fixture("credits.json")),
+            (200, fixture("subscription.json")),
+        ]);
+        let now = Utc.with_ymd_and_hms(2026, 9, 17, 18, 0, 0).unwrap();
+
+        let limits = fetch_limits(&test_client(), &base, "token", now).expect("limits");
+
+        assert_eq!(limits.plan.as_deref(), Some("GOAT"));
+        assert_eq!(limits.plan_id.as_deref(), Some("individual-goat"));
+    }
+
+    #[test]
+    fn reports_an_endpoint_failure_with_its_url() {
+        let base = test_server::spawn(vec![(500, "{}".to_string())]);
+        let now = Utc.with_ymd_and_hms(2026, 9, 17, 18, 0, 0).unwrap();
+
+        let error = fetch_limits(&test_client(), &base, "token", now).expect_err("http error");
+
+        assert!(
+            matches!(error, CollectError::Failed(message) if message.contains("/alpha/usage/summary"))
+        );
     }
 }

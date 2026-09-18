@@ -101,49 +101,57 @@ function grokSection(usage: ProviderUsage): string {
     </div>`;
 }
 
-function commandCodeSection(limits: CommandCodeLimits): string {
-  const badge = limits.plan
-    ? `<span class="badge">${limits.plan}${limits.status ? ` · ${limits.status}` : ""}</span>`
-    : "";
+function commandCodeBadge(limits: CommandCodeLimits): string {
+  if (!limits.plan) return "";
+  return `<span class="badge">${limits.plan}${limits.status ? ` · ${limits.status}` : ""}</span>`;
+}
 
-  const renew =
-    limits.daysToRenew === null || limits.daysToRenew === undefined
-      ? ""
-      : limits.daysToRenew <= 0
-        ? "renova hoje"
-        : `renova em ${limits.daysToRenew} dias`;
+function commandCodeRenewal(limits: CommandCodeLimits): string {
+  if (limits.daysToRenew === null || limits.daysToRenew === undefined) return "";
+  return limits.daysToRenew <= 0 ? "renova hoje" : `renova em ${limits.daysToRenew} dias`;
+}
 
-  const requests = `${formatNumber(limits.requestsThisPeriod)} ${
-    limits.periodBasis === "billing-period" ? "requests este mês" : "requests no período"
-  }`;
+function commandCodeRequests(limits: CommandCodeLimits): string {
+  const basis =
+    limits.periodBasis === "billing-period" ? "requests este mês" : "requests no período";
+  return `${formatNumber(limits.requestsThisPeriod)} ${basis}`;
+}
 
-  const principal = limits.weekly
-    ? `
+function commandCodePrincipal(limits: CommandCodeLimits, requests: string): string {
+  if (limits.weekly) {
+    return `
       ${limitBar(limits.weekly.percentUsed)}
       <div class="limit-meta">
         <span>${formatPercent(limits.weekly.percentUsed)} do período semanal</span>
         <span>${formatResetCountdown(limits.weekly.resetAt)}</span>
-      </div>`
-    : `
+      </div>`;
+  }
+  return `
       ${limitBar(limits.usagePercent)}
       <div class="limit-meta">
         <span>${formatPercent(limits.usagePercent)} usado</span>
         <span>${requests}</span>
       </div>`;
+}
 
-  const windows = [
+function commandCodeWindows(limits: CommandCodeLimits, requests: string): string {
+  return [
     limits.fiveHour ? windowRow("5h", limits.fiveHour.percentUsed, limits.fiveHour.resetAt) : "",
     limits.weekly ? windowRowDetail("mensal", limits.usagePercent, requests) : "",
   ].join("");
+}
+
+function commandCodeSection(limits: CommandCodeLimits): string {
+  const requests = commandCodeRequests(limits);
 
   return `
     <div class="limit">
       <div class="limit-meta top">
-        ${badge}
-        <span>${renew}</span>
+        ${commandCodeBadge(limits)}
+        <span>${commandCodeRenewal(limits)}</span>
       </div>
-      ${principal}
-      ${windows}
+      ${commandCodePrincipal(limits, requests)}
+      ${commandCodeWindows(limits, requests)}
       <div class="limit-foot">saldo ${limits.creditsRemaining.toFixed(1)} de ${limits.creditsTotal.toFixed(0)} créditos</div>
     </div>`;
 }

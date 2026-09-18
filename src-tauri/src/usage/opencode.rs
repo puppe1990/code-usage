@@ -76,13 +76,13 @@ pub fn collect(db: &Path, since: DateTime<Utc>) -> Result<Vec<UsageRecord>, Coll
     let connection = open_read_only(db)?;
     let mut statement = connection
         .prepare("SELECT `time_created`, `data` FROM `message` WHERE `time_created` >= ?1")
-        .map_err(|error| CollectError::Failed(error.to_string()))?;
+        .map_err(|error| CollectError::Failed(format!("{}: {error}", db.display())))?;
 
     let rows = statement
         .query_map([since.timestamp_millis()], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
         })
-        .map_err(|error| CollectError::Failed(error.to_string()))?;
+        .map_err(|error| CollectError::Failed(format!("{}: {error}", db.display())))?;
 
     let mut records = Vec::new();
     for row in rows {

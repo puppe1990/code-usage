@@ -100,6 +100,28 @@ fn inference_event(context: &serde_json::Value, timestamp: DateTime<Utc>) -> Opt
     }))
 }
 
+/// Folds one log line into the running records and the latest billing limits.
+fn apply_event(
+    event: Option<GrokEvent>,
+    since: DateTime<Utc>,
+    records: &mut Vec<UsageRecord>,
+    limits: &mut Option<GrokLimits>,
+) {
+    match event {
+        Some(GrokEvent::Billing(candidate)) => {
+            let is_newer = limits
+                .as_ref()
+                .map(|current| candidate.fetched_at >= current.fetched_at)
+                .unwrap_or(true);
+            if is_newer {
+                *limits = Some(candidate);
+            }
+        }
+        Some(GrokEvent::Inference(record)) if record.timestamp >= since => records.push(record),
+        Some(GrokEvent::Inference(_)) | None => {}
+    }
+}
+
 /// Reads the CLI log from `since` on, into records plus the latest billing limits.
 pub fn collect(path: &Path, since: DateTime<Utc>) -> Result<GrokData, CollectError> {
     if !path.exists() {
@@ -113,21 +135,7 @@ pub fn collect(path: &Path, since: DateTime<Utc>) -> Result<GrokData, CollectErr
     let mut limits: Option<GrokLimits> = None;
 
     for line in BufReader::new(file).lines().map_while(Result::ok) {
-        match parse_line(&line) {
-            Some(GrokEvent::Billing(candidate)) => {
-                let is_newer = limits
-                    .as_ref()
-                    .map(|current| candidate.fetched_at >= current.fetched_at)
-                    .unwrap_or(true);
-                if is_newer {
-                    limits = Some(candidate);
-                }
-            }
-            Some(GrokEvent::Inference(record)) if record.timestamp >= since => {
-                records.push(record);
-            }
-            Some(GrokEvent::Inference(_)) | None => {}
-        }
+        apply_event(parse_line(&line), since, &mut records, &mut limits);
     }
 
     Ok(GrokData { records, limits })
