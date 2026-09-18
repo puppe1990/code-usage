@@ -35,10 +35,9 @@ function limitBar(percent: number, small = false): string {
   return `<div class="limit-bar${small ? " small" : ""}"><div class="limit-fill" style="width:${width.toFixed(1)}%"></div></div>`;
 }
 
-function star(favorite: FavoriteId, favorites: FavoriteId[]): string {
-  const active = favorites.includes(favorite);
-  const title = active ? "Não mostrar no menu bar" : "Mostrar no menu bar";
-  return `<button class="star${active ? " active" : ""}" data-favorite="${favorite}" title="${title}">★</button>`;
+function star(favorite: FavoriteId, selected: boolean): string {
+  const title = selected ? "Tirar do menu bar" : "Mostrar no menu bar";
+  return `<button class="star${selected ? " active" : ""}" data-favorite="${favorite}" title="${title}">★</button>`;
 }
 
 function windowRow(label: string, percent: number, resetAt: string): string {
@@ -148,7 +147,7 @@ function statusNotice(usage: ProviderUsage): string {
   return "";
 }
 
-function card(usage: ProviderUsage, favorites: FavoriteId[]): string {
+function card(usage: ProviderUsage, favorite: FavoriteId | null): string {
   const showCost = usage.provider !== "grok";
   const updated = usage.lastRecordAt
     ? `atualizado ${formatRelativeTime(usage.lastRecordAt)}`
@@ -157,7 +156,7 @@ function card(usage: ProviderUsage, favorites: FavoriteId[]): string {
     <section class="card">
       <header class="card-head">
         <h2>${PROVIDER_LABEL[usage.provider]}</h2>
-        <span class="card-updated">${updated}${star(usage.provider, favorites)}</span>
+        <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}</span>
       </header>
       ${statusNotice(usage)}
       ${usage.commandCode ? commandCodeSection(usage.commandCode) : ""}
@@ -169,7 +168,7 @@ function card(usage: ProviderUsage, favorites: FavoriteId[]): string {
     </section>`;
 }
 
-export function panelHtml(snapshot: UsageSnapshot, favorites: FavoriteId[] = []): string {
+export function panelHtml(snapshot: UsageSnapshot, favorite: FavoriteId | null = null): string {
   return `
     <div class="panel">
       <header class="panel-head">
@@ -180,10 +179,10 @@ export function panelHtml(snapshot: UsageSnapshot, favorites: FavoriteId[] = [])
         </span>
       </header>
       <main class="cards">
-        ${snapshot.providers.map((usage) => card(usage, favorites)).join("")}
+        ${snapshot.providers.map((usage) => card(usage, favorite)).join("")}
       </main>
       <footer class="panel-foot">
-        <span>gerado ${formatRelativeTime(snapshot.generatedAt)} · ★ escolhe o que vai pro menu bar</span>
+        <span>gerado ${formatRelativeTime(snapshot.generatedAt)} · ★ escolhe o harness do menu bar</span>
         <button id="quit" title="Encerrar o Code Usage">sair</button>
       </footer>
     </div>`;
@@ -192,7 +191,7 @@ export function panelHtml(snapshot: UsageSnapshot, favorites: FavoriteId[] = [])
 export function renderPanel(
   root: HTMLElement,
   snapshot: UsageSnapshot,
-  favorites: FavoriteId[] = [],
+  favorite: FavoriteId | null = null,
 ): void {
-  root.innerHTML = panelHtml(snapshot, favorites);
+  root.innerHTML = panelHtml(snapshot, favorite);
 }

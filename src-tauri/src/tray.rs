@@ -7,8 +7,8 @@ use tauri::{AppHandle, LogicalPosition, Manager, Position, Rect, Size, WebviewWi
 pub const TRAY_ID: &str = "usage-tray";
 pub const WINDOW_LABEL: &str = "main";
 
-pub fn title_for(snapshot: &UsageSnapshot, favorites: &[Favorite]) -> String {
-    tray_title::format_title(snapshot, favorites)
+pub fn title_for(snapshot: &UsageSnapshot, favorite: Option<Favorite>) -> String {
+    tray_title::format_title(snapshot, favorite)
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
