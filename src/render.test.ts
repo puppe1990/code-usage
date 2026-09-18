@@ -145,6 +145,17 @@ describe("panelHtml", () => {
     expect(html).toContain("77% do período semanal · SuperGrok");
   });
 
+  it("renders each harness mark in its own card header", () => {
+    const html = panelHtml(snapshot);
+    const cards = html.split('<section class="card"').slice(1);
+
+    expect(cards).toHaveLength(3);
+    for (const markup of cards) {
+      expect(markup).toMatch(/<h2><svg [^>]*class="provider-logo"/);
+    }
+    expect(html.match(/class="provider-logo"/g) ?? []).toHaveLength(3);
+  });
+
   it("renders one star per harness in the card header", () => {
     const html = panelHtml(snapshot, null);
 
