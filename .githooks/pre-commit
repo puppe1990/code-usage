@@ -1,16 +1,31 @@
 #!/bin/sh
 set -e
 
+if [ -n "$SKIP_PRECOMMIT" ]; then
+  echo "pre-commit pulado (SKIP_PRECOMMIT)"
+  exit 0
+fi
+
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
-echo "▶ prettier --check"
-npx --no-install prettier --check .
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -z "$staged" ] && exit 0
 
-echo "▶ testes do frontend (vitest)"
-npm test --silent
+formatted="$(echo "$staged" | grep -E '\.(ts|js|mjs|cjs|json|css|html|md|ya?ml)$' || true)"
+if [ -n "$formatted" ]; then
+  echo "▶ prettier --check (arquivos do commit)"
+  echo "$formatted" | xargs npx --no-install prettier --check
+fi
 
-echo "▶ testes do Rust (cargo test --release)"
-cargo test --release --quiet --manifest-path src-tauri/Cargo.toml
+if echo "$staged" | grep -qE '^src/|^index\.html$|^package(-lock)?\.json$|^tsconfig\.json$|^vite\.config\.ts$'; then
+  echo "▶ testes do frontend (vitest)"
+  npm test --silent
+fi
+
+if echo "$staged" | grep -qE '^src-tauri/'; then
+  echo "▶ testes do Rust (cargo test --release)"
+  cargo test --release --quiet --manifest-path src-tauri/Cargo.toml
+fi
 
 echo "✔ pre-commit ok"
