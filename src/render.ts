@@ -61,7 +61,7 @@ function rows(window: UsageWindow, showCost: boolean, label: string): string {
     </div>`;
 }
 
-function grokSection(usage: ProviderUsage, favorites: FavoriteId[]): string {
+function grokSection(usage: ProviderUsage): string {
   const limits = usage.grok;
   if (!limits) return "";
   const tier = limits.tier ? ` · ${limits.tier}` : "";
@@ -70,12 +70,12 @@ function grokSection(usage: ProviderUsage, favorites: FavoriteId[]): string {
       ${limitBar(limits.creditUsagePercent)}
       <div class="limit-meta">
         <span>${formatPercent(limits.creditUsagePercent)} do período semanal${tier}</span>
-        <span>${formatResetCountdown(limits.periodEnd)}${star("grokWeekly", favorites)}</span>
+        <span>${formatResetCountdown(limits.periodEnd)}</span>
       </div>
     </div>`;
 }
 
-function commandCodeSection(limits: CommandCodeLimits, favorites: FavoriteId[]): string {
+function commandCodeSection(limits: CommandCodeLimits): string {
   const badge = limits.plan
     ? `<span class="badge">${limits.plan}${limits.status ? ` · ${limits.status}` : ""}</span>`
     : "";
@@ -100,7 +100,7 @@ function commandCodeSection(limits: CommandCodeLimits, favorites: FavoriteId[]):
     <div class="limit">
       <div class="limit-meta top">
         ${badge}
-        <span>${renew}${star("commandCodePlan", favorites)}</span>
+        <span>${renew}</span>
       </div>
       ${limitBar(limits.usagePercent)}
       <div class="limit-meta">
@@ -112,13 +112,13 @@ function commandCodeSection(limits: CommandCodeLimits, favorites: FavoriteId[]):
     </div>`;
 }
 
-function openCodeGoSection(limits: OpenCodeGoLimits, favorites: FavoriteId[]): string {
+function openCodeGoSection(limits: OpenCodeGoLimits): string {
   const weekly = limits.weekly
     ? `
       ${limitBar(limits.weekly.percent)}
       <div class="limit-meta">
         <span>${formatPercent(limits.weekly.percent)} do período semanal</span>
-        <span>${formatResetCountdown(limits.weekly.resetsAt)}${star("openCodeGoWeekly", favorites)}</span>
+        <span>${formatResetCountdown(limits.weekly.resetsAt)}</span>
       </div>`
     : "";
 
@@ -153,22 +153,16 @@ function card(usage: ProviderUsage, favorites: FavoriteId[]): string {
   const updated = usage.lastRecordAt
     ? `atualizado ${formatRelativeTime(usage.lastRecordAt)}`
     : "sem dados";
-  const costFavorite =
-    usage.provider === "commandCode"
-      ? star("commandCodeTodayCost", favorites)
-      : usage.provider === "openCode"
-        ? star("openCodeTodayCost", favorites)
-        : "";
   return `
     <section class="card">
       <header class="card-head">
         <h2>${PROVIDER_LABEL[usage.provider]}</h2>
-        <span class="card-updated">${updated}${costFavorite}</span>
+        <span class="card-updated">${updated}${star(usage.provider, favorites)}</span>
       </header>
       ${statusNotice(usage)}
-      ${usage.commandCode ? commandCodeSection(usage.commandCode, favorites) : ""}
-      ${usage.openCodeGo ? openCodeGoSection(usage.openCodeGo, favorites) : ""}
-      ${grokSection(usage, favorites)}
+      ${usage.commandCode ? commandCodeSection(usage.commandCode) : ""}
+      ${usage.openCodeGo ? openCodeGoSection(usage.openCodeGo) : ""}
+      ${grokSection(usage)}
       ${rows(usage.today, showCost, "hoje")}
       ${rows(usage.last7d, showCost, "7 dias")}
       ${rows(usage.last30d, showCost, "30 dias")}

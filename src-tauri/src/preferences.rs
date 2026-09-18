@@ -4,29 +4,19 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Favorite {
-    GrokWeekly,
-    CommandCodePlan,
-    CommandCodeTodayCost,
-    OpenCodeGoWeekly,
-    OpenCodeTodayCost,
+    Grok,
+    CommandCode,
+    OpenCode,
 }
 
 impl Favorite {
-    pub const ALL: [Favorite; 5] = [
-        Favorite::GrokWeekly,
-        Favorite::CommandCodePlan,
-        Favorite::CommandCodeTodayCost,
-        Favorite::OpenCodeGoWeekly,
-        Favorite::OpenCodeTodayCost,
-    ];
+    pub const ALL: [Favorite; 3] = [Favorite::Grok, Favorite::CommandCode, Favorite::OpenCode];
 
     pub fn label(self) -> &'static str {
         match self {
-            Favorite::GrokWeekly => "Grok semanal",
-            Favorite::CommandCodePlan => "Command Code plano",
-            Favorite::CommandCodeTodayCost => "Command Code hoje",
-            Favorite::OpenCodeGoWeekly => "OpenCode Go semanal",
-            Favorite::OpenCodeTodayCost => "OpenCode hoje",
+            Favorite::Grok => "Grok",
+            Favorite::CommandCode => "Command Code",
+            Favorite::OpenCode => "OpenCode",
         }
     }
 }
@@ -40,11 +30,7 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
-            favorites: vec![
-                Favorite::GrokWeekly,
-                Favorite::CommandCodeTodayCost,
-                Favorite::OpenCodeTodayCost,
-            ],
+            favorites: vec![Favorite::Grok, Favorite::CommandCode, Favorite::OpenCode],
         }
     }
 }
@@ -99,13 +85,18 @@ pub fn load(path: &Path) -> Preferences {
         return Preferences::default();
     };
 
-    let favorites = entries
+    let favorites: Vec<Favorite> = entries
         .iter()
         .filter_map(|entry| entry.as_str())
         .filter_map(|entry| {
             serde_json::from_value::<Favorite>(serde_json::Value::String(entry.to_string())).ok()
         })
         .collect();
+
+    // a file with entries but none recognized is a legacy/foreign config: keep the defaults
+    if favorites.is_empty() && !entries.is_empty() {
+        return Preferences::default();
+    }
 
     Preferences::with_favorites(favorites)
 }
@@ -126,16 +117,12 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn defaults_to_grok_weekly_and_both_daily_costs() {
+    fn defaults_to_every_harness() {
         let preferences = Preferences::default();
 
         assert_eq!(
             preferences.favorites,
-            vec![
-                Favorite::GrokWeekly,
-                Favorite::CommandCodeTodayCost,
-                Favorite::OpenCodeTodayCost
-            ]
+            vec![Favorite::Grok, Favorite::CommandCode, Favorite::OpenCode]
         );
     }
 
@@ -154,16 +141,12 @@ mod tests {
     fn round_trips_through_the_config_file() {
         let dir = TempDir::new().expect("temp dir");
         let path = dir.path().join("nested").join("preferences.json");
-        let preferences =
-            Preferences::with_favorites(vec![Favorite::CommandCodePlan, Favorite::GrokWeekly]);
+        let preferences = Preferences::with_favorites(vec![Favorite::OpenCode, Favorite::Grok]);
 
         save(&path, &preferences).expect("saves preferences");
 
         let loaded = load(&path);
-        assert_eq!(
-            loaded.favorites,
-            vec![Favorite::GrokWeekly, Favorite::CommandCodePlan]
-        );
+        assert_eq!(loaded.favorites, vec![Favorite::Grok, Favorite::OpenCode]);
     }
 
     #[test]
@@ -172,14 +155,27 @@ mod tests {
         let path = dir.path().join("preferences.json");
         fs::write(
             &path,
-            r#"{"favorites":["openCodeTodayCost","nope","openCodeTodayCost","grokWeekly"]}"#,
+            r#"{"favorites":["openCode","commandCodePlan","openCode","grok"]}"#,
         )
         .expect("writes config");
 
         assert_eq!(
             load(&path).favorites,
-            vec![Favorite::GrokWeekly, Favorite::OpenCodeTodayCost]
+            vec![Favorite::Grok, Favorite::OpenCode]
         );
+    }
+
+    #[test]
+    fn files_with_only_unknown_favorites_fall_back_to_defaults() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("preferences.json");
+        fs::write(
+            &path,
+            r#"{"favorites":["grokWeekly","commandCodeTodayCost","openCodeTodayCost"]}"#,
+        )
+        .expect("writes config");
+
+        assert_eq!(load(&path), Preferences::default());
     }
 
     #[test]

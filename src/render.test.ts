@@ -145,27 +145,21 @@ describe("panelHtml", () => {
     expect(html).toContain("77% do período semanal · SuperGrok");
   });
 
-  it("renders a star for every favoriteable metric", () => {
+  it("renders one star per harness in the card header", () => {
     const html = panelHtml(snapshot, []);
 
-    for (const id of [
-      "grokWeekly",
-      "commandCodePlan",
-      "commandCodeTodayCost",
-      "openCodeGoWeekly",
-      "openCodeTodayCost",
-    ]) {
+    for (const id of ["grok", "commandCode", "openCode"]) {
       expect(html).toContain(`data-favorite="${id}"`);
     }
+    expect(html.match(/class="star/g) ?? []).toHaveLength(3);
   });
 
-  it("marks the favorited metrics with an active star", () => {
-    const html = panelHtml(snapshot, ["grokWeekly", "openCodeGoWeekly"]);
+  it("marks the favorited harnesses with an active star", () => {
+    const html = panelHtml(snapshot, ["grok"]);
 
-    expect(html).toContain('class="star active" data-favorite="grokWeekly"');
-    expect(html).toContain('class="star active" data-favorite="openCodeGoWeekly"');
-    expect(html).toContain('class="star" data-favorite="commandCodeTodayCost"');
-    expect(html).toContain('class="star" data-favorite="commandCodePlan"');
+    expect(html).toContain('class="star active" data-favorite="grok"');
+    expect(html).toContain('class="star" data-favorite="commandCode"');
+    expect(html).toContain('class="star" data-favorite="openCode"');
   });
 
   it("renders a notice when a provider is missing", () => {
