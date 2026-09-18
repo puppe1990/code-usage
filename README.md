@@ -37,6 +37,7 @@ Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_
 
 - The tray title refreshes every **60s** and the panel receives each new snapshot through an event.
 - The ★ stars are saved to `~/Library/Application Support/code-usage/preferences.json` (override with `CODE_USAGE_CONFIG`). With no star selected the menu bar shows the icon only.
+- **abrir ao iniciar o Mac** registers the app as a login item (`tauri-plugin-autostart`, a LaunchAgent) and shows whatever the system currently has — it is the same switch as System Settings → General → Login Items.
 - Clicking the icon toggles the panel; it is positioned right below the icon and hides when it loses focus (Esc also closes it).
 - The icon has no native menu: on macOS a menu attached to the status item would open on any click and block the popover, so **Refresh** and **Quit** live inside the panel.
 - The whole snapshot is recomputed on every cycle: Command Code reads the transcripts (~90 files), Grok reads the CLI log and OpenCode runs a read-only `SELECT` on the `message` table.
@@ -83,7 +84,7 @@ npm run tauri build
 cp -R "src-tauri/target/release/bundle/macos/Code Usage.app" /Applications/
 ```
 
-The app runs with no Dock icon (`ActivationPolicy::Accessory`); to quit, use the **Sair** button in the panel footer. To launch it at login, add it under System Settings → General → Login Items.
+The app runs with no Dock icon (`ActivationPolicy::Accessory`); to quit, use the **Sair** button in the panel footer. To launch it at login, tick **abrir ao iniciar o Mac** in the panel.
 
 ## Architecture
 

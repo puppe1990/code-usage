@@ -4,10 +4,32 @@ use crate::tray;
 use crate::usage::UsageSnapshot;
 use crate::AppState;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
 pub fn get_usage(state: State<'_, AppState>) -> Option<UsageSnapshot> {
     state.snapshot.lock().ok().and_then(|guard| guard.clone())
+}
+
+#[tauri::command]
+pub fn get_autostart(app: AppHandle) -> Result<bool, String> {
+    app.autolaunch()
+        .is_enabled()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    let autolaunch = app.autolaunch();
+
+    if enabled {
+        autolaunch.enable()
+    } else {
+        autolaunch.disable()
+    }
+    .map_err(|error| error.to_string())?;
+
+    autolaunch.is_enabled().map_err(|error| error.to_string())
 }
 
 #[tauri::command]

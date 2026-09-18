@@ -182,6 +182,12 @@ describe("panelHtml", () => {
     }
   });
 
+  it("renders the launch at login toggle", () => {
+    expect(panelHtml(snapshot)).toContain('id="autostart"');
+    expect(panelHtml(snapshot)).not.toContain("checked");
+    expect(panelHtml(snapshot, null, new Set(), true)).toMatch(/id="autostart" checked/);
+  });
+
   it("renders one star per harness in the card header", () => {
     const html = panelHtml(snapshot, null);
 

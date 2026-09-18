@@ -255,6 +255,19 @@ body {
   word-break: break-all;
 }
 
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #93a0b4;
+  cursor: pointer;
+}
+
+.toggle input {
+  accent-color: #60a5fa;
+}
+
 .panel-foot {
   display: flex;
   align-items: center;
