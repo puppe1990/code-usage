@@ -5,7 +5,7 @@
 
 A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **OpenCode** in one place.
 
-- **Menu bar title:** `46% · $0.42 · $1.03` by default — and you choose what goes there: every metric has a ★ button in the panel (Grok weekly, Command Code plan/today cost, OpenCode Go weekly, OpenCode today cost) and the title shows exactly the starred ones, in a fixed order
+- **Menu bar title:** `100% · 12% · 5% · 20% · 24% · 12%` — one ★ per harness in the panel picks who shows up, and each harness contributes the plan windows it actually has, in the order 5-hour/rolling → weekly → monthly: Grok gives its weekly percentage, Command Code its 5-hour and weekly windows, OpenCode Go its rolling/weekly/monthly. When a harness has no window data (limits unavailable, no subscription) the title falls back to today's cost, and a metric with no data at all renders as `–`
 - **Click the icon:** a panel with today / 7 days / 30 days per provider, tokens (input, output, cache), the Grok weekly window, the Command Code plan limits (plan, percentage used, requests, renewal and the 5-hour/weekly windows) and the OpenCode Go windows (rolling / weekly / monthly)
 - **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The only network calls read your plan limits (Command Code and OpenCode Go) using credentials the CLIs themselves store — see below.
 

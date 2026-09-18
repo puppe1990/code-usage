@@ -22,15 +22,52 @@ fn provider(snapshot: &UsageSnapshot, provider: Provider) -> Option<&super::Prov
         .find(|usage| usage.provider == provider)
 }
 
-fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> String {
+fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> Vec<String> {
     match favorite {
-        Favorite::Grok => provider(snapshot, Provider::Grok)
+        Favorite::Grok => vec![provider(snapshot, Provider::Grok)
             .filter(|usage| matches!(usage.status, ProviderStatus::Ok))
             .and_then(|usage| usage.grok.as_ref())
             .map(|limits| percent(limits.credit_usage_percent))
-            .unwrap_or_else(placeholder),
-        Favorite::CommandCode => today_cost(snapshot, Provider::CommandCode),
-        Favorite::OpenCode => today_cost(snapshot, Provider::OpenCode),
+            .unwrap_or_else(placeholder)],
+        Favorite::CommandCode => {
+            let windows = provider(snapshot, Provider::CommandCode)
+                .and_then(|usage| usage.command_code.as_ref())
+                .map(|limits| {
+                    let mut values = Vec::new();
+                    if let Some(window) = limits.five_hour.as_ref() {
+                        values.push(percent(window.percent_used));
+                    }
+                    if let Some(window) = limits.weekly.as_ref() {
+                        values.push(percent(window.percent_used));
+                    }
+                    values
+                })
+                .unwrap_or_default();
+
+            if windows.is_empty() {
+                vec![today_cost(snapshot, Provider::CommandCode)]
+            } else {
+                windows
+            }
+        }
+        Favorite::OpenCode => {
+            let windows = provider(snapshot, Provider::OpenCode)
+                .and_then(|usage| usage.open_code_go.as_ref())
+                .map(|limits| {
+                    [&limits.rolling, &limits.weekly, &limits.monthly]
+                        .into_iter()
+                        .flatten()
+                        .map(|window| percent(window.percent))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            if windows.is_empty() {
+                vec![today_cost(snapshot, Provider::OpenCode)]
+            } else {
+                windows
+            }
+        }
     }
 }
 
@@ -47,7 +84,7 @@ pub fn format_title(snapshot: &UsageSnapshot, favorites: &[Favorite]) -> String 
     Favorite::ALL
         .iter()
         .filter(|favorite| favorites.contains(favorite))
-        .map(|favorite| value_for(snapshot, *favorite))
+        .flat_map(|favorite| value_for(snapshot, *favorite))
         .collect::<Vec<_>>()
         .join(SEPARATOR)
 }
@@ -60,7 +97,10 @@ fn placeholder() -> String {
 mod tests {
     use super::*;
     use crate::preferences::Preferences;
-    use crate::usage::{GrokLimits, ProviderUsage, UsageWindow};
+    use crate::usage::{
+        CommandCodeLimits, GrokLimits, OpenCodeGoLimits, OpenCodeGoWindow, ProviderUsage,
+        UsageWindow, WindowLimit,
+    };
     use chrono::{TimeZone, Utc};
 
     fn grok_limits(percent: f64) -> GrokLimits {
@@ -71,6 +111,57 @@ mod tests {
             period_end: start + chrono::Duration::days(7),
             tier: Some("SuperGrok Plus".to_string()),
             fetched_at: start,
+        }
+    }
+
+    fn command_code_limits(five_hour: Option<f64>, weekly: Option<f64>) -> CommandCodeLimits {
+        let now = Utc.with_ymd_and_hms(2026, 9, 17, 15, 0, 0).unwrap();
+        CommandCodeLimits {
+            plan: Some("GOAT".to_string()),
+            plan_id: Some("individual-goat".to_string()),
+            status: Some("active".to_string()),
+            usage_percent: 45.7,
+            credits_total: 70.0,
+            credits_remaining: 38.0,
+            requests_this_period: 7945,
+            period_basis: Some("billing-period".to_string()),
+            renews_at: None,
+            days_to_renew: Some(23),
+            five_hour: five_hour.map(|percent_used| WindowLimit {
+                percent_used,
+                used: 1.0,
+                cap: 14.0,
+                reset_at: now,
+            }),
+            weekly: weekly.map(|percent_used| WindowLimit {
+                percent_used,
+                used: 1.0,
+                cap: 35.0,
+                reset_at: now,
+            }),
+            fetched_at: now,
+        }
+    }
+
+    fn open_code_go_limits(
+        rolling: Option<f64>,
+        weekly: Option<f64>,
+        monthly: Option<f64>,
+    ) -> OpenCodeGoLimits {
+        let now = Utc.with_ymd_and_hms(2026, 9, 17, 15, 0, 0).unwrap();
+        let window = |percent: f64| {
+            Some(OpenCodeGoWindow {
+                percent,
+                status: Some("ok".to_string()),
+                resets_at: now,
+            })
+        };
+
+        OpenCodeGoLimits {
+            rolling: rolling.and_then(window),
+            weekly: weekly.and_then(window),
+            monthly: monthly.and_then(window),
+            fetched_at: now,
         }
     }
 
@@ -166,6 +257,57 @@ mod tests {
         assert_eq!(
             format_title(&healthy_snapshot(), &[Favorite::OpenCode, Favorite::Grok]),
             "46% · $1.03"
+        );
+    }
+
+    #[test]
+    fn renders_the_plan_windows_when_they_exist() {
+        let mut command_code = provider(Provider::CommandCode, ProviderStatus::Ok, 1.09, None);
+        command_code.command_code = Some(command_code_limits(Some(10.2), Some(4.6)));
+
+        let mut open_code = provider(Provider::OpenCode, ProviderStatus::Ok, 3.434, None);
+        open_code.open_code_go = Some(open_code_go_limits(Some(11.4), Some(21.2), Some(9.6)));
+
+        let snapshot = snapshot(vec![
+            command_code,
+            provider(
+                Provider::Grok,
+                ProviderStatus::Ok,
+                0.0,
+                Some(grok_limits(92.3)),
+            ),
+            open_code,
+        ]);
+
+        assert_eq!(
+            format_title(&snapshot, &Favorite::ALL),
+            "92% · 10% · 5% · 11% · 21% · 10%"
+        );
+    }
+
+    #[test]
+    fn renders_only_the_windows_a_harness_actually_has() {
+        let mut open_code = provider(Provider::OpenCode, ProviderStatus::Ok, 3.434, None);
+        open_code.open_code_go = Some(open_code_go_limits(None, None, Some(9.6)));
+
+        let snapshot = snapshot(vec![open_code]);
+
+        assert_eq!(format_title(&snapshot, &[Favorite::OpenCode]), "10%");
+    }
+
+    #[test]
+    fn falls_back_to_today_cost_when_a_harness_has_no_windows() {
+        let mut command_code = provider(Provider::CommandCode, ProviderStatus::Ok, 1.09, None);
+        command_code.command_code = Some(command_code_limits(None, None));
+
+        let mut open_code = provider(Provider::OpenCode, ProviderStatus::Ok, 3.434, None);
+        open_code.open_code_go = None;
+
+        let snapshot = snapshot(vec![command_code, open_code]);
+
+        assert_eq!(
+            format_title(&snapshot, &[Favorite::CommandCode, Favorite::OpenCode]),
+            "$1.09 · $3.43"
         );
     }
 
