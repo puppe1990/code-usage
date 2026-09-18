@@ -44,6 +44,8 @@ fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> Vec<String> {
                     if let Some(window) = limits.weekly.as_ref() {
                         values.push(window_value("W", window.percent_used));
                     }
+                    // the billing period is monthly: this is the plan percentage the dashboard shows
+                    values.push(window_value("M", limits.usage_percent));
                     values
                 })
                 .unwrap_or_default();
@@ -267,13 +269,26 @@ mod tests {
 
         assert_eq!(
             format_title(&snapshot, Some(Favorite::CommandCode)),
-            "5h 10% · W 5%"
+            "5h 10% · W 5% · M 46%"
         );
         assert_eq!(
             format_title(&snapshot, Some(Favorite::OpenCode)),
             "5h 11% · W 21% · M 10%"
         );
         assert_eq!(format_title(&snapshot, Some(Favorite::Grok)), "W 92%");
+    }
+
+    #[test]
+    fn renders_the_command_code_billing_period_as_the_monthly_window() {
+        let mut command_code = provider(Provider::CommandCode, ProviderStatus::Ok, 1.09, None);
+        command_code.command_code = Some(command_code_limits(None, None));
+
+        let snapshot = snapshot(vec![command_code]);
+
+        assert_eq!(
+            format_title(&snapshot, Some(Favorite::CommandCode)),
+            "M 46%"
+        );
     }
 
     #[test]
@@ -288,15 +303,19 @@ mod tests {
 
     #[test]
     fn falls_back_to_today_cost_when_a_harness_has_no_windows() {
-        let mut command_code = provider(Provider::CommandCode, ProviderStatus::Ok, 1.09, None);
-        command_code.command_code = Some(command_code_limits(None, None));
+        let mut open_code = provider(Provider::OpenCode, ProviderStatus::Ok, 3.434, None);
+        open_code.open_code_go = Some(open_code_go_limits(None, None, None));
 
-        let snapshot = snapshot(vec![command_code]);
+        let snapshot = snapshot(vec![
+            provider(Provider::CommandCode, ProviderStatus::Ok, 1.09, None),
+            open_code,
+        ]);
 
         assert_eq!(
             format_title(&snapshot, Some(Favorite::CommandCode)),
             "$1.09"
         );
+        assert_eq!(format_title(&snapshot, Some(Favorite::OpenCode)), "$3.43");
     }
 
     #[test]
