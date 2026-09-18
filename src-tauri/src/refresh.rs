@@ -23,15 +23,21 @@ pub fn refresh_and_publish(app: &AppHandle) {
     let snapshot = usage::snapshot(Local::now());
     publish(app, &snapshot);
 
-    let before = snapshot
-        .providers
-        .iter()
-        .find_map(|provider| provider.command_code.clone());
+    let limits_before = |snapshot: &UsageSnapshot| {
+        snapshot
+            .providers
+            .iter()
+            .map(|provider| (provider.command_code.clone(), provider.open_code_go.clone()))
+            .collect::<Vec<_>>()
+    };
+    let before = limits_before(&snapshot);
 
-    let after = usage::commandcode_api::refresh_cache();
+    usage::commandcode_api::refresh_cache();
+    usage::opencode_go::refresh_cache();
 
-    if after != before {
-        publish(app, &usage::snapshot(Local::now()));
+    let refreshed = usage::snapshot(Local::now());
+    if limits_before(&refreshed) != before {
+        publish(app, &refreshed);
     }
 }
 

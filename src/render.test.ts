@@ -3,6 +3,7 @@ import { panelHtml } from "./render";
 import type { UsageSnapshot } from "./types";
 
 const resetAt = new Date(Date.now() + 6 * 86_400_000 + 16 * 3_600_000).toISOString();
+const goResetAt = new Date(Date.now() + 2 * 3_600_000 + 40 * 60_000).toISOString();
 
 const snapshot: UsageSnapshot = {
   generatedAt: new Date().toISOString(),
@@ -70,21 +71,28 @@ const snapshot: UsageSnapshot = {
     },
     {
       provider: "openCode",
-      status: { state: "notFound", path: "/tmp/missing.db" },
+      status: { state: "ok" },
       today: {
-        costUsd: 0,
-        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
-        records: 0,
+        costUsd: 2.95,
+        tokens: { input: 500, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+        records: 5,
       },
       last7d: {
         costUsd: 0,
         tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
-        records: 0,
+        records: 5,
       },
       last30d: {
         costUsd: 0,
         tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
-        records: 0,
+        records: 5,
+      },
+      lastRecordAt: new Date().toISOString(),
+      openCodeGo: {
+        rolling: { percent: 11, status: "ok", resetsAt: goResetAt },
+        weekly: { percent: 21, status: "ok", resetsAt: resetAt },
+        monthly: { percent: 10, status: "ok", resetsAt: resetAt },
+        fetchedAt: new Date().toISOString(),
       },
     },
   ],
@@ -104,11 +112,39 @@ describe("panelHtml", () => {
     expect(html).toContain("reseta em");
   });
 
+  it("renders the OpenCode Go windows", () => {
+    const html = panelHtml(snapshot);
+
+    expect(html).toContain("OpenCode Go");
+    expect(html).toContain("rolling");
+    expect(html).toContain("11%");
+    expect(html).toContain("21%");
+    expect(html).toContain("mensal");
+    expect(html).toContain("10%");
+  });
+
   it("renders the local windows and grok limits", () => {
     const html = panelHtml(snapshot);
 
     expect(html).toContain("$0.64");
+    expect(html).toContain("$2.95");
     expect(html).toContain("77% do período semanal · SuperGrok");
-    expect(html).toContain("não encontrado em /tmp/missing.db");
+  });
+
+  it("renders a notice when a provider is missing", () => {
+    const missing: UsageSnapshot = {
+      generatedAt: new Date().toISOString(),
+      providers: [
+        {
+          provider: "openCode",
+          status: { state: "notFound", path: "/tmp/missing.db" },
+          today: snapshot.providers[2].today,
+          last7d: snapshot.providers[2].last7d,
+          last30d: snapshot.providers[2].last30d,
+        },
+      ],
+    };
+
+    expect(panelHtml(missing)).toContain("não encontrado em /tmp/missing.db");
   });
 });

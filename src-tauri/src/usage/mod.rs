@@ -2,6 +2,7 @@ pub mod commandcode;
 pub mod commandcode_api;
 pub mod grok;
 pub mod opencode;
+pub mod opencode_go;
 pub mod tray_title;
 pub mod window;
 
@@ -137,6 +138,34 @@ pub struct CommandCodeLimits {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OpenCodeGoWindow {
+    pub percent: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    pub resets_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenCodeGoLimits {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rolling: Option<OpenCodeGoWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weekly: Option<OpenCodeGoWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monthly: Option<OpenCodeGoWindow>,
+    pub fetched_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ProviderLimits {
+    pub grok: Option<GrokLimits>,
+    pub command_code: Option<CommandCodeLimits>,
+    pub open_code_go: Option<OpenCodeGoLimits>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderUsage {
     pub provider: Provider,
     pub status: ProviderStatus,
@@ -148,6 +177,8 @@ pub struct ProviderUsage {
     pub grok: Option<GrokLimits>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command_code: Option<CommandCodeLimits>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_code_go: Option<OpenCodeGoLimits>,
 }
 
 impl ProviderUsage {
@@ -155,8 +186,7 @@ impl ProviderUsage {
         provider: Provider,
         records: &[UsageRecord],
         now: DateTime<Local>,
-        grok: Option<GrokLimits>,
-        command_code: Option<CommandCodeLimits>,
+        limits: ProviderLimits,
     ) -> Self {
         let windows = window::summarize(records, now);
         Self {
@@ -166,8 +196,9 @@ impl ProviderUsage {
             last_7d: windows.last_7d,
             last_30d: windows.last_30d,
             last_record_at: records.iter().map(|record| record.timestamp).max(),
-            grok,
-            command_code,
+            grok: limits.grok,
+            command_code: limits.command_code,
+            open_code_go: limits.open_code_go,
         }
     }
 
@@ -181,6 +212,7 @@ impl ProviderUsage {
             last_record_at: None,
             grok: None,
             command_code: None,
+            open_code_go: None,
         }
     }
 }
@@ -201,22 +233,39 @@ pub fn snapshot(now: DateTime<Local>) -> UsageSnapshot {
             Provider::CommandCode,
             &records,
             now,
-            None,
-            command_code_limits,
+            ProviderLimits {
+                command_code: command_code_limits,
+                ..ProviderLimits::default()
+            },
         ),
         Err(error) => ProviderUsage::unavailable(Provider::CommandCode, error),
     });
 
     let since = window::start_of_day(now) - Duration::days(31);
     providers.push(match grok::collect(&grok::log_path(), since) {
-        Ok(data) => {
-            ProviderUsage::from_records(Provider::Grok, &data.records, now, data.limits, None)
-        }
+        Ok(data) => ProviderUsage::from_records(
+            Provider::Grok,
+            &data.records,
+            now,
+            ProviderLimits {
+                grok: data.limits,
+                ..ProviderLimits::default()
+            },
+        ),
         Err(error) => ProviderUsage::unavailable(Provider::Grok, error),
     });
 
+    let open_code_go_limits = opencode_go::cached_limits();
     providers.push(match opencode::collect(&opencode::db_path(), since) {
-        Ok(records) => ProviderUsage::from_records(Provider::OpenCode, &records, now, None, None),
+        Ok(records) => ProviderUsage::from_records(
+            Provider::OpenCode,
+            &records,
+            now,
+            ProviderLimits {
+                open_code_go: open_code_go_limits,
+                ..ProviderLimits::default()
+            },
+        ),
         Err(error) => ProviderUsage::unavailable(Provider::OpenCode, error),
     });
 
@@ -235,6 +284,7 @@ mod smoke_tests {
     #[ignore = "reads the real CLI data from this machine"]
     fn prints_snapshot_from_real_data() {
         commandcode_api::refresh_cache();
+        opencode_go::refresh_cache();
         let snapshot = snapshot(Local::now());
 
         for usage in &snapshot.providers {
@@ -255,6 +305,14 @@ mod smoke_tests {
                     limits.period_start.to_rfc3339(),
                     limits.period_end.to_rfc3339(),
                     limits.tier,
+                );
+            }
+            if let Some(limits) = &usage.open_code_go {
+                println!(
+                    "  opencode go: rolling={:?}% weekly={:?}% monthly={:?}%",
+                    limits.rolling.as_ref().map(|window| window.percent),
+                    limits.weekly.as_ref().map(|window| window.percent),
+                    limits.monthly.as_ref().map(|window| window.percent),
                 );
             }
             if let Some(limits) = &usage.command_code {
