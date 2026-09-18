@@ -48,6 +48,19 @@ export interface CommandCodeLimits {
   fetchedAt: string;
 }
 
+export interface OpenCodeGoWindow {
+  percent: number;
+  status?: string | null;
+  resetsAt: string;
+}
+
+export interface OpenCodeGoLimits {
+  rolling?: OpenCodeGoWindow | null;
+  weekly?: OpenCodeGoWindow | null;
+  monthly?: OpenCodeGoWindow | null;
+  fetchedAt: string;
+}
+
 export interface ProviderUsage {
   provider: ProviderId;
   status: ProviderStatus;
@@ -57,6 +70,7 @@ export interface ProviderUsage {
   lastRecordAt?: string | null;
   grok?: GrokLimits | null;
   commandCode?: CommandCodeLimits | null;
+  openCodeGo?: OpenCodeGoLimits | null;
 }
 
 export interface UsageSnapshot {

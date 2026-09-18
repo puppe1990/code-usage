@@ -8,11 +8,11 @@ import {
 } from "./format";
 import type {
   CommandCodeLimits,
+  OpenCodeGoLimits,
   ProviderUsage,
   TokenTotals,
   UsageSnapshot,
   UsageWindow,
-  WindowLimit,
 } from "./types";
 
 const PROVIDER_LABEL: Record<ProviderUsage["provider"], string> = {
@@ -34,12 +34,12 @@ function limitBar(percent: number, small = false): string {
   return `<div class="limit-bar${small ? " small" : ""}"><div class="limit-fill" style="width:${width.toFixed(1)}%"></div></div>`;
 }
 
-function windowRow(label: string, window: WindowLimit): string {
+function windowRow(label: string, percent: number, resetAt: string): string {
   return `
     <div class="window-row">
       <span class="window-label">${label}</span>
-      ${limitBar(window.percentUsed, true)}
-      <span class="window-meta">${formatPercent(window.percentUsed)} · ${formatResetCountdown(window.resetAt)}</span>
+      ${limitBar(percent, true)}
+      <span class="window-meta">${formatPercent(percent)} · ${formatResetCountdown(resetAt)}</span>
     </div>`;
 }
 
@@ -85,8 +85,8 @@ function commandCodeSection(limits: CommandCodeLimits): string {
   }`;
 
   const windows = [
-    limits.fiveHour ? windowRow("5h", limits.fiveHour) : "",
-    limits.weekly ? windowRow("semanal", limits.weekly) : "",
+    limits.fiveHour ? windowRow("5h", limits.fiveHour.percentUsed, limits.fiveHour.resetAt) : "",
+    limits.weekly ? windowRow("semanal", limits.weekly.percentUsed, limits.weekly.resetAt) : "",
   ].join("");
 
   return `
@@ -102,6 +102,24 @@ function commandCodeSection(limits: CommandCodeLimits): string {
       </div>
       ${windows}
       <div class="limit-foot">saldo ${limits.creditsRemaining.toFixed(1)} de ${limits.creditsTotal.toFixed(0)} créditos</div>
+    </div>`;
+}
+
+function openCodeGoSection(limits: OpenCodeGoLimits): string {
+  const windows = [
+    limits.rolling ? windowRow("rolling", limits.rolling.percent, limits.rolling.resetsAt) : "",
+    limits.weekly ? windowRow("semanal", limits.weekly.percent, limits.weekly.resetsAt) : "",
+    limits.monthly ? windowRow("mensal", limits.monthly.percent, limits.monthly.resetsAt) : "",
+  ].join("");
+
+  if (!windows.trim()) return "";
+
+  return `
+    <div class="limit">
+      <div class="limit-meta top">
+        <span class="badge">OpenCode Go</span>
+      </div>
+      ${windows}
     </div>`;
 }
 
@@ -128,6 +146,7 @@ function card(usage: ProviderUsage): string {
       </header>
       ${statusNotice(usage)}
       ${usage.commandCode ? commandCodeSection(usage.commandCode) : ""}
+      ${usage.openCodeGo ? openCodeGoSection(usage.openCodeGo) : ""}
       ${grokSection(usage)}
       ${rows(usage.today, showCost, "hoje")}
       ${rows(usage.last7d, showCost, "7 dias")}

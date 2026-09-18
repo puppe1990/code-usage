@@ -6,8 +6,8 @@
 A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **OpenCode** in one place.
 
 - **Menu bar title:** `46% · $0.42 · $1.03` → Grok weekly percentage · today's Command Code cost · today's OpenCode cost
-- **Click the icon:** a panel with today / 7 days / 30 days per provider, tokens (input, output, cache), the Grok weekly window and the Command Code plan limits (plan, percentage used, requests, renewal and the 5-hour/weekly windows)
-- **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The **only** network call reads your Command Code plan limits (see below).
+- **Click the icon:** a panel with today / 7 days / 30 days per provider, tokens (input, output, cache), the Grok weekly window, the Command Code plan limits (plan, percentage used, requests, renewal and the 5-hour/weekly windows) and the OpenCode Go windows (rolling / weekly / monthly)
+- **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The only network calls read your plan limits (Command Code and OpenCode Go) using credentials the CLIs themselves store — see below.
 
 ## Data sources
 
@@ -17,12 +17,14 @@ A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **
 | Command Code (plan limits) | `api.commandcode.ai` — `/alpha/usage/summary`, `/alpha/billing/credits`, `/alpha/billing/subscriptions` | plan, percentage used, period requests, credit balance and the 5-hour/weekly windows (the same endpoints the CLI's `/usage` uses, authenticated with the `apiKey` from `~/.commandcode/auth.json`) |
 | Grok                       | `~/.grok/logs/unified.jsonl`                                                                            | `billing: fetched credits config` events (period percentage) and `shell.turn.inference_done` (tokens)                                                                                              |
 | OpenCode                   | `~/.local/share/opencode/opencode.db` (SQLite, read-only)                                               | `message` table, JSON payload with `cost` and `tokens`                                                                                                                                             |
+| OpenCode Go (plan limits)  | `opencode.ai/zen/go/v1/usage`                                                                           | the `usage.rolling` / `usage.weekly` / `usage.monthly` windows (percentage and reset instant), authenticated with the `opencode-go` API key from `~/.local/share/opencode/auth.json`               |
 
-Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`.
+Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`, `CODE_USAGE_OPENCODE_AUTH`, `CODE_USAGE_OPENCODE_GO_URL`.
 
 ## Limitations (by design of each CLI)
 
 - **Command Code (plan limits)** uses the CLI's internal API — it is an `alpha` endpoint with no public contract and can change without notice. Limits are fetched at most every 5 minutes; if the request fails the app keeps the last known values (or simply hides that block) and keeps working with local data.
+- **OpenCode Go (plan limits)** reads the usage endpoint the OpenCode clients use (undocumented, may change). Same 5-minute cache and same graceful fallback as above; without an `opencode-go` key in `auth.json` the block is simply not shown.
 - **Grok** only refreshes the percentage when the CLI runs; the panel shows "updated X ago" based on the latest event.
 - **OpenCode** does not compute a cost for every message (messages without `cost` count as $0, but their tokens still count).
 

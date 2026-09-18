@@ -76,6 +76,7 @@ mod tests {
             last_record_at: None,
             grok,
             command_code: None,
+            open_code_go: None,
         }
     }
 
