@@ -106,20 +106,28 @@ function commandCodeSection(limits: CommandCodeLimits): string {
 }
 
 function openCodeGoSection(limits: OpenCodeGoLimits): string {
-  const windows = [
+  const weekly = limits.weekly
+    ? `
+      ${limitBar(limits.weekly.percent)}
+      <div class="limit-meta">
+        <span>${formatPercent(limits.weekly.percent)} do período semanal</span>
+        <span>${formatResetCountdown(limits.weekly.resetsAt)}</span>
+      </div>`
+    : "";
+
+  const secondary = [
     limits.rolling ? windowRow("rolling", limits.rolling.percent, limits.rolling.resetsAt) : "",
-    limits.weekly ? windowRow("semanal", limits.weekly.percent, limits.weekly.resetsAt) : "",
     limits.monthly ? windowRow("mensal", limits.monthly.percent, limits.monthly.resetsAt) : "",
   ].join("");
 
-  if (!windows.trim()) return "";
+  if (!weekly && !secondary.trim()) return "";
 
   return `
     <div class="limit">
       <div class="limit-meta top">
         <span class="badge">OpenCode Go</span>
       </div>
-      ${windows}
+      ${weekly}${secondary}
     </div>`;
 }
 

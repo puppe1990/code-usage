@@ -123,6 +123,20 @@ describe("panelHtml", () => {
     expect(html).toContain("10%");
   });
 
+  it("renders the weekly window as the largest bar of the OpenCode card", () => {
+    const html = panelHtml(snapshot);
+    const goBlock = html.slice(html.indexOf("OpenCode Go"));
+
+    expect(goBlock).toContain('class="limit-bar"><div class="limit-fill" style="width:21.0%');
+    expect(goBlock).toContain("21% do período semanal");
+    expect(goBlock).toContain('<span class="window-label">rolling</span>');
+    expect(goBlock).toContain('<span class="window-label">mensal</span>');
+    expect(goBlock).not.toContain('<span class="window-label">semanal</span>');
+    expect(goBlock).not.toContain(
+      'class="limit-bar small"><div class="limit-fill" style="width:21.0%',
+    );
+  });
+
   it("renders the local windows and grok limits", () => {
     const html = panelHtml(snapshot);
 
