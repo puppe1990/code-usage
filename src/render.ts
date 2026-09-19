@@ -3,7 +3,6 @@ import grokMark from "../src-tauri/icons/grok.svg?raw";
 import openCodeMark from "../src-tauri/icons/opencode.svg?raw";
 import {
   formatCost,
-  formatNumber,
   formatPercent,
   formatRelativeTime,
   formatResetCountdown,
@@ -111,13 +110,7 @@ function commandCodeRenewal(limits: CommandCodeLimits): string {
   return limits.daysToRenew <= 0 ? "renova hoje" : `renova em ${limits.daysToRenew} dias`;
 }
 
-function commandCodeRequests(limits: CommandCodeLimits): string {
-  const basis =
-    limits.periodBasis === "billing-period" ? "requests este mês" : "requests no período";
-  return `${formatNumber(limits.requestsThisPeriod)} ${basis}`;
-}
-
-function commandCodePrincipal(limits: CommandCodeLimits, requests: string): string {
+function commandCodePrincipal(limits: CommandCodeLimits): string {
   if (limits.weekly) {
     return `
       ${limitBar(limits.weekly.percentUsed)}
@@ -130,29 +123,25 @@ function commandCodePrincipal(limits: CommandCodeLimits, requests: string): stri
       ${limitBar(limits.usagePercent)}
       <div class="limit-meta">
         <span>${formatPercent(limits.usagePercent)} usado</span>
-        <span>${requests}</span>
+        <span>${commandCodeRenewal(limits)}</span>
       </div>`;
 }
 
-function commandCodeWindows(limits: CommandCodeLimits, requests: string): string {
+function commandCodeWindows(limits: CommandCodeLimits): string {
   return [
     limits.fiveHour ? windowRow("5h", limits.fiveHour.percentUsed, limits.fiveHour.resetAt) : "",
-    limits.weekly ? windowRowDetail("mensal", limits.usagePercent, requests) : "",
+    limits.weekly ? windowRowDetail("mensal", limits.usagePercent, commandCodeRenewal(limits)) : "",
   ].join("");
 }
 
 function commandCodeSection(limits: CommandCodeLimits): string {
-  const requests = commandCodeRequests(limits);
-
   return `
     <div class="limit">
       <div class="limit-meta top">
         ${commandCodeBadge(limits)}
-        <span>${commandCodeRenewal(limits)}</span>
       </div>
-      ${commandCodePrincipal(limits, requests)}
-      ${commandCodeWindows(limits, requests)}
-      <div class="limit-foot">saldo ${limits.creditsRemaining.toFixed(1)} de ${limits.creditsTotal.toFixed(0)} créditos</div>
+      ${commandCodePrincipal(limits)}
+      ${commandCodeWindows(limits)}
     </div>`;
 }
 

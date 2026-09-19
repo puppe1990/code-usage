@@ -105,11 +105,23 @@ describe("panelHtml", () => {
     expect(html).toContain("GOAT · active");
     expect(html).toContain("renova em 23 dias");
     expect(html).toContain("2% do período semanal");
-    expect(html).toContain("45% · 7.776 requests este mês");
-    expect(html).toContain("saldo 38.5 de 70 créditos");
+    expect(html).toContain("45% · renova em 23 dias");
+    expect(html).not.toContain("requests este mês");
+    expect(html).not.toContain("créditos");
     expect(html).toContain("5h");
     expect(html).toContain("mensal");
     expect(html).toContain("reseta em");
+  });
+
+  it("shows the Command Code renewal on the monthly row, not the header", () => {
+    const html = panelHtml(snapshot);
+    const block = html.slice(html.indexOf("Command Code"), html.indexOf("Grok"));
+    const top = block.slice(block.indexOf('class="limit-meta top"'), block.indexOf("limit-bar"));
+    const monthly = block.slice(block.indexOf('<span class="window-label">mensal</span>'));
+
+    expect(top).not.toContain("renova em");
+    expect(monthly).toContain("renova em 23 dias");
+    expect(monthly).not.toContain("requests");
   });
 
   it("renders the weekly window as the largest bar of the Command Code card", () => {
