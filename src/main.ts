@@ -23,6 +23,7 @@ let autostart = false;
 const expanded = new Set<ProviderId>();
 
 let accountMenu: ProviderId | null = null;
+let accountSwitching: ProviderId | null = null;
 const accountLists = new Map<ProviderId, AccountEntry[]>();
 const accountErrors = new Map<ProviderId, string>();
 
@@ -32,13 +33,23 @@ function menuState(): AccountMenuState | null {
   return {
     provider: accountMenu,
     accounts: accountLists.get(accountMenu),
+    switching: accountSwitching === accountMenu,
     error: accountErrors.get(accountMenu),
   };
 }
 
 function render(): void {
-  if (latest) {
+  if (!latest) return;
+
+  try {
     renderPanel(root, latest, favorite, expanded, autostart, menuState());
+  } catch (error) {
+    // um render quebrado não pode deixar o painel congelado no desenho anterior
+    console.error("failed to render the panel", error);
+    const notice = document.createElement("div");
+    notice.className = "loading";
+    notice.textContent = `falha ao desenhar o painel: ${String(error)}`;
+    root.replaceChildren(notice);
   }
 }
 
@@ -105,13 +116,17 @@ async function loadAccounts(provider: ProviderId): Promise<void> {
 
 async function switchAccount(provider: ProviderId, name: string): Promise<void> {
   accountErrors.delete(provider);
+  accountSwitching = provider;
   render();
 
   try {
     accountLists.set(provider, await invoke<AccountEntry[]>("switch_account", { provider, name }));
   } catch (error) {
     accountErrors.set(provider, String(error));
+  } finally {
+    accountSwitching = null;
   }
+
   if (accountMenu === provider) render();
 }
 

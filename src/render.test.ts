@@ -224,7 +224,32 @@ describe("panelHtml", () => {
     expect(html).toContain("&quot;&gt;&lt;script&gt;");
   });
 
-  it("keeps the account menu closed until the badge is clicked", () => {
+  it("shows the switch in flight and locks the list while it runs", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, {
+      provider: "grok",
+      switching: true,
+      accounts: [
+        { name: "pessoal", active: true },
+        { name: "trabalho", active: false },
+      ],
+    });
+
+    expect(html).toContain('<p class="account-hint">trocando…</p>');
+    expect(html.match(/disabled/g) ?? []).toHaveLength(2);
+    expect(html).toContain('data-name="trabalho" disabled');
+  });
+
+  it("keeps the list clickable when no switch is in flight", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, {
+      provider: "grok",
+      accounts: [{ name: "pessoal", active: true }],
+    });
+
+    expect(html).not.toContain("disabled");
+    expect(html).not.toContain("trocando…");
+  });
+
+  it("keeps the menu closed until the badge is clicked", () => {
     expect(panelHtml(snapshot)).not.toContain('class="account-menu"');
     expect(panelHtml(snapshot)).not.toContain('class="account open"');
   });

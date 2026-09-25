@@ -76,9 +76,9 @@ const ACCOUNT_HINT: Record<ProviderId, string> = {
   openCode: "nenhuma conta Go salva — use ocgs save <nome>",
 };
 
-function accountItem(provider: ProviderId, account: AccountEntry): string {
+function accountItem(provider: ProviderId, account: AccountEntry, disabled: boolean): string {
   const active = account.active ? '<span class="account-active">atual</span>' : "";
-  return `<button class="account-item${account.active ? " active" : ""}" data-switch="${provider}" data-name="${escapeHtml(account.name)}"><span>${escapeHtml(account.name)}</span>${active}</button>`;
+  return `<button class="account-item${account.active ? " active" : ""}" data-switch="${provider}" data-name="${escapeHtml(account.name)}"${disabled ? " disabled" : ""}><span>${escapeHtml(account.name)}</span>${active}</button>`;
 }
 
 /** Dropdown under the card header listing that harness logins; clicking one switches to it. */
@@ -91,9 +91,12 @@ function accountMenu(usage: ProviderUsage, menu: AccountMenuState | null): strin
       ? '<p class="account-hint">carregando…</p>'
       : menu.accounts.length === 0
         ? `<p class="account-hint">${escapeHtml(ACCOUNT_HINT[usage.provider])}</p>`
-        : menu.accounts.map((account) => accountItem(usage.provider, account)).join("");
+        : menu.accounts
+            .map((account) => accountItem(usage.provider, account, menu.switching ?? false))
+            .join("");
+  const busy = menu.switching ? '<p class="account-hint">trocando…</p>' : "";
 
-  return `<div class="account-menu" data-menu="${usage.provider}">${body}</div>`;
+  return `<div class="account-menu" data-menu="${usage.provider}">${body}${busy}</div>`;
 }
 
 function totalTokens(tokens: TokenTotals): number {
