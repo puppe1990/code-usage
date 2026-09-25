@@ -31,8 +31,33 @@ const PROVIDER_MARK: Record<ProviderUsage["provider"], string> = {
   openCode: openCodeMark.trim(),
 };
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function providerHeading(provider: ProviderUsage["provider"]): string {
   return `${PROVIDER_MARK[provider]}${PROVIDER_LABEL[provider]}`;
+}
+
+/** Plan or tier that goes with the account in the avatar tooltip. */
+function accountDetail(usage: ProviderUsage): string | null {
+  if (usage.provider === "commandCode") return usage.commandCode?.plan ?? null;
+  if (usage.provider === "grok") return usage.grok?.tier ?? null;
+  return null;
+}
+
+/** Round avatar next to the harness name; hovering it names the account behind the harness. */
+function accountBadge(usage: ProviderUsage): string {
+  if (!usage.account) return "";
+
+  const title = [usage.account, accountDetail(usage)].filter(Boolean).join(" · ");
+  const initial = usage.account.charAt(0).toUpperCase();
+
+  return `<span class="account" title="${escapeHtml(title)}">${escapeHtml(initial)}</span>`;
 }
 
 function totalTokens(tokens: TokenTotals): number {
@@ -194,7 +219,7 @@ function card(
   return `
     <section class="card${isExpanded ? " expanded" : ""}" data-provider="${usage.provider}">
       <header class="card-head" data-collapse="${usage.provider}" role="button" tabindex="0" aria-expanded="${isExpanded}">
-        <h2>${providerHeading(usage.provider)}</h2>
+        <h2>${providerHeading(usage.provider)}${accountBadge(usage)}</h2>
         <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}<span class="chevron" aria-hidden="true">▸</span></span>
       </header>
       ${statusNotice(usage)}

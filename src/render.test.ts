@@ -11,6 +11,7 @@ const snapshot: UsageSnapshot = {
     {
       provider: "commandCode",
       status: { state: "ok" },
+      account: "matheuspuppe1whs",
       today: {
         costUsd: 0.64,
         tokens: { input: 1000, output: 100, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
@@ -46,6 +47,7 @@ const snapshot: UsageSnapshot = {
     {
       provider: "grok",
       status: { state: "ok" },
+      account: "ericasantiago240@gmail.com",
       today: {
         costUsd: 0,
         tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
@@ -72,6 +74,7 @@ const snapshot: UsageSnapshot = {
     {
       provider: "openCode",
       status: { state: "ok" },
+      account: "OpenCode Go",
       today: {
         costUsd: 2.95,
         tokens: { input: 500, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
@@ -187,6 +190,34 @@ describe("panelHtml", () => {
       expect(markup).toMatch(/<h2><svg [^>]*class="provider-logo"/);
     }
     expect(html.match(/class="provider-logo"/g) ?? []).toHaveLength(3);
+  });
+
+  it("renders one account avatar per harness, with the plan in the tooltip", () => {
+    const html = panelHtml(snapshot);
+
+    expect(html.match(/class="account"/g) ?? []).toHaveLength(3);
+    expect(html).toContain('class="account" title="matheuspuppe1whs · GOAT">M</span>');
+    expect(html).toContain(
+      'class="account" title="ericasantiago240@gmail.com · SuperGrok">E</span>',
+    );
+    expect(html).toContain('class="account" title="OpenCode Go">O</span>');
+  });
+
+  it("skips the avatar when the harness reports no account", () => {
+    const anonymous = structuredClone(snapshot);
+    for (const provider of anonymous.providers) delete provider.account;
+
+    expect(panelHtml(anonymous)).not.toContain('class="account"');
+  });
+
+  it("escapes the account in the tooltip", () => {
+    const hostile = structuredClone(snapshot);
+    hostile.providers[1].account = 'x"><script>alert(1)</script>';
+
+    const html = panelHtml(hostile);
+
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&quot;&gt;&lt;script&gt;");
   });
 
   it("collapses the harness cards unless they are expanded", () => {

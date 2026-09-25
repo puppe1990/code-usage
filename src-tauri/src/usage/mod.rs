@@ -177,6 +177,9 @@ pub struct ProviderLimits {
 pub struct ProviderUsage {
     pub provider: Provider,
     pub status: ProviderStatus,
+    /// Account the harness is logged in with, when the CLI records one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
     pub today: UsageWindow,
     pub last_7d: UsageWindow,
     pub last_30d: UsageWindow,
@@ -193,6 +196,7 @@ impl ProviderUsage {
     /// Card with the local windows plus whatever plan limits were cached for this harness.
     pub fn from_records(
         provider: Provider,
+        account: Option<String>,
         records: &[UsageRecord],
         now: DateTime<Local>,
         limits: ProviderLimits,
@@ -201,6 +205,7 @@ impl ProviderUsage {
         Self {
             provider,
             status: ProviderStatus::Ok,
+            account,
             today: windows.today,
             last_7d: windows.last_7d,
             last_30d: windows.last_30d,
@@ -212,10 +217,11 @@ impl ProviderUsage {
     }
 
     /// Card for a CLI that failed or is not installed; the error becomes the status notice.
-    pub fn unavailable(provider: Provider, error: CollectError) -> Self {
+    pub fn unavailable(provider: Provider, error: CollectError, account: Option<String>) -> Self {
         Self {
             provider,
             status: error.into(),
+            account,
             today: UsageWindow::default(),
             last_7d: UsageWindow::default(),
             last_30d: UsageWindow::default(),
@@ -248,9 +254,12 @@ pub fn snapshot(now: DateTime<Local>) -> UsageSnapshot {
 
 /// Command Code card: transcripts on disk plus the cached plan limits.
 fn command_code_usage(now: DateTime<Local>) -> ProviderUsage {
+    let account = commandcode_api::read_account(&commandcode_api::auth_path());
+
     match commandcode::collect(&commandcode::root_path()) {
         Ok(records) => ProviderUsage::from_records(
             Provider::CommandCode,
+            account,
             &records,
             now,
             ProviderLimits {
@@ -258,17 +267,19 @@ fn command_code_usage(now: DateTime<Local>) -> ProviderUsage {
                 ..ProviderLimits::default()
             },
         ),
-        Err(error) => ProviderUsage::unavailable(Provider::CommandCode, error),
+        Err(error) => ProviderUsage::unavailable(Provider::CommandCode, error, account),
     }
 }
 
 /// Grok card: the CLI log (records and the weekly limits live in the same file).
 fn grok_usage(now: DateTime<Local>) -> ProviderUsage {
     let since = window::start_of_day(now) - Duration::days(31);
+    let account = grok::read_account(&grok::auth_path());
 
     match grok::collect(&grok::log_path(), since) {
         Ok(data) => ProviderUsage::from_records(
             Provider::Grok,
+            account,
             &data.records,
             now,
             ProviderLimits {
@@ -276,17 +287,19 @@ fn grok_usage(now: DateTime<Local>) -> ProviderUsage {
                 ..ProviderLimits::default()
             },
         ),
-        Err(error) => ProviderUsage::unavailable(Provider::Grok, error),
+        Err(error) => ProviderUsage::unavailable(Provider::Grok, error, account),
     }
 }
 
 /// OpenCode card: the local database plus the cached Go plan limits.
 fn open_code_usage(now: DateTime<Local>) -> ProviderUsage {
     let since = window::start_of_day(now) - Duration::days(31);
+    let account = opencode_go::read_account(&opencode_go::auth_path());
 
     match opencode::collect(&opencode::db_path(), since) {
         Ok(records) => ProviderUsage::from_records(
             Provider::OpenCode,
+            account,
             &records,
             now,
             ProviderLimits {
@@ -294,7 +307,7 @@ fn open_code_usage(now: DateTime<Local>) -> ProviderUsage {
                 ..ProviderLimits::default()
             },
         ),
-        Err(error) => ProviderUsage::unavailable(Provider::OpenCode, error),
+        Err(error) => ProviderUsage::unavailable(Provider::OpenCode, error, account),
     }
 }
 
@@ -312,9 +325,10 @@ mod smoke_tests {
 
         for usage in &snapshot.providers {
             println!(
-                "{}: status={:?} today=${:.4} 7d=${:.4} 30d=${:.4} tokens30d={} last={:?}",
+                "{}: status={:?} account={:?} today=${:.4} 7d=${:.4} 30d=${:.4} tokens30d={} last={:?}",
                 usage.provider.display_name(),
                 usage.status,
+                usage.account,
                 usage.today.cost_usd,
                 usage.last_7d.cost_usd,
                 usage.last_30d.cost_usd,

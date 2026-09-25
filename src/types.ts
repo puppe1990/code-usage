@@ -66,6 +66,7 @@ export type FavoriteId = "grok" | "commandCode" | "openCode";
 export interface ProviderUsage {
   provider: ProviderId;
   status: ProviderStatus;
+  account?: string | null;
   today: UsageWindow;
   last7d: UsageWindow;
   last30d: UsageWindow;

@@ -47,6 +47,18 @@ pub fn read_token(path: &Path) -> Result<String, CollectError> {
         .ok_or_else(|| CollectError::Failed(format!("{}: sem apiKey", path.display())))
 }
 
+/// Logged in account (`userName`) of the active CLI login, shown on the panel avatar.
+pub fn read_account(path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let value: Value = serde_json::from_str(&content).ok()?;
+
+    value
+        .get("userName")
+        .and_then(|name| name.as_str())
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+}
+
 pub fn fetch_limits(
     client: &reqwest::blocking::Client,
     base_url: &str,
@@ -112,6 +124,16 @@ mod tests {
             read_token(&dir.path().join("missing.json")),
             Err(CollectError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn reads_the_account_name_from_the_auth_file() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("auth.json");
+        fs::write(&path, fixture("auth.json")).expect("writes fixture");
+
+        assert_eq!(read_account(&path).as_deref(), Some("puppe-fixture"));
+        assert_eq!(read_account(&dir.path().join("missing.json")), None);
     }
 
     #[test]
