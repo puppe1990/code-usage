@@ -84,8 +84,12 @@ pub fn list_accounts(provider: Provider) -> Result<Vec<Account>, String> {
 
 #[tauri::command]
 /// Switches the harness to `name`, drops the plan limits cached for the account that just left,
-/// and recomputes on a worker thread so the panel and the tray follow.
-pub fn switch_account(app: AppHandle, provider: Provider, name: String) -> Result<(), String> {
+/// and recomputes on a worker thread; returns the refreshed list the panel renders.
+pub fn switch_account(
+    app: AppHandle,
+    provider: Provider,
+    name: String,
+) -> Result<Vec<Account>, String> {
     accounts::switch(provider, &name)?;
 
     match provider {
@@ -99,7 +103,7 @@ pub fn switch_account(app: AppHandle, provider: Provider, name: String) -> Resul
         refresh::refresh_and_publish(&handle);
     });
 
-    Ok(())
+    accounts::list(provider)
 }
 
 #[tauri::command]

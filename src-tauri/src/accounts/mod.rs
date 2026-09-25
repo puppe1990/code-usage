@@ -125,6 +125,20 @@ mod tests {
             .contains("não é um JSON válido"));
     }
 
+    /// The panel reads `Vec<Account>` straight from `list_accounts` / `switch_account`.
+    #[test]
+    fn accounts_serialize_as_the_panel_reads_them() {
+        let accounts = vec![Account {
+            name: "pessoal".to_string(),
+            active: true,
+        }];
+
+        assert_eq!(
+            serde_json::to_value(accounts).expect("serializes"),
+            serde_json::json!([{"name": "pessoal", "active": true}])
+        );
+    }
+
     #[test]
     fn a_failed_write_leaves_the_original_file_alone() {
         let dir = TempDir::new().expect("temp dir");

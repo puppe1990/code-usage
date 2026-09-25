@@ -191,6 +191,15 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.account-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.account-item:disabled:hover {
+  background: transparent;
+}
+
 .account-item.active {
   color: #bfdbfe;
 }

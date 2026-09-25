@@ -71,6 +71,7 @@ export interface AccountEntry {
 export interface AccountMenuState {
   provider: ProviderId;
   accounts?: AccountEntry[];
+  switching?: boolean;
   error?: string;
 }
 
