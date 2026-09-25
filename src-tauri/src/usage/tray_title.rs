@@ -204,6 +204,7 @@ mod tests {
         ProviderUsage {
             provider,
             status,
+            account: None,
             today: UsageWindow {
                 cost_usd: today_cost,
                 ..UsageWindow::default()

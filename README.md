@@ -12,6 +12,7 @@ A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **
 - **Menu bar title:** **one** harness at a time — the ★ in the panel is a single choice (default: Command Code; clicking the active star clears it and leaves only the icon). The chosen harness shows the plan windows it has, each labelled: `5h` for the rolling/five-hour window, `W` for the weekly one and `M` for the monthly one, in that order — Grok gives `W 100%`, Command Code `5h 12% · W 5% · M 46%` (its billing period is monthly, so `M` is the plan percentage shown in the dashboard) and OpenCode Go `5h 20% · W 25% · M 12%`. When a harness has no window data (limits unavailable, no subscription) the title falls back to today's cost, and missing data renders as `–`
 - **Menu bar mark:** the selected harness also picks the icon — each harness shows its own mark (Command Code, Grok, OpenCode) and the icon-only state keeps the gauge; the panel card headers repeat the same marks
 - **Click the icon:** a panel with one collapsible card per harness — the plan limits (the Grok weekly window; the Command Code weekly window as the main bar, with the plan, renewal, 5-hour/monthly windows, requests and credit balance below; the OpenCode Go 5h / weekly / monthly windows) are always visible, and clicking the card header reveals that harness' today / 7 days / 30 days totals with tokens (input, output, cache)
+- **Which account:** a round badge next to each harness name carries the account that CLI is logged in with — hover it for the name (`matheuspuppe1whs · GOAT`, `you@example.com · SuperGrok`, `OpenCode Go`)
 - **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The only network calls read your plan limits (Command Code and OpenCode Go) using credentials the CLIs themselves store — see below.
 
 ## Data sources
@@ -23,8 +24,9 @@ A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **
 | Grok                       | `~/.grok/logs/unified.jsonl`                                                                            | `billing: fetched credits config` events (period percentage) and `shell.turn.inference_done` (tokens)                                                                                              |
 | OpenCode                   | `~/.local/share/opencode/opencode.db` (SQLite, read-only)                                               | `message` table, JSON payload with `cost` and `tokens`                                                                                                                                             |
 | OpenCode Go (plan limits)  | `opencode.ai/zen/go/v1/usage`                                                                           | the `usage.rolling` / `usage.weekly` / `usage.monthly` windows (percentage and reset instant), authenticated with the `opencode-go` API key from `~/.local/share/opencode/auth.json`               |
+| Account (panel badge)      | `~/.commandcode/auth.json`, `~/.grok/auth.json`, `~/.local/share/opencode/auth.json`                    | the logged in `userName`, the newest credential `email` and the OpenCode credential name, shown on the round badge of each card                                                                    |
 
-Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`, `CODE_USAGE_OPENCODE_AUTH`, `CODE_USAGE_OPENCODE_GO_URL`.
+Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_GROK_AUTH`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`, `CODE_USAGE_OPENCODE_AUTH`, `CODE_USAGE_OPENCODE_GO_URL`.
 
 ## Limitations (by design of each CLI)
 
@@ -32,6 +34,7 @@ Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_
 - **OpenCode Go (plan limits)** reads the usage endpoint the OpenCode clients use (undocumented, may change). Same 5-minute cache and same graceful fallback as above; without an `opencode-go` key in `auth.json` the block is simply not shown.
 - **Grok** only refreshes the percentage when the CLI runs; the panel shows "updated X ago" based on the latest event.
 - **OpenCode** does not compute a cost for every message (messages without `cost` count as $0, but their tokens still count).
+- **OpenCode (account)** stores no email or profile locally, so its badge shows the credential behind the plan (`OpenCode Go`, or `OpenCode Zen` without the Go key) instead of an account name.
 
 ## Behavior
 

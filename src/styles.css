@@ -119,6 +119,25 @@ body {
   vertical-align: -2px;
 }
 
+/* round avatar next to the harness name: the tooltip carries the account */
+.account {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.25);
+  color: #bfdbfe;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -2px;
+  cursor: default;
+}
+
 /* the OpenCode mark is drawn for light backgrounds: invert it for the dark panel */
 .card[data-provider="openCode"] .provider-logo {
   filter: invert(1);

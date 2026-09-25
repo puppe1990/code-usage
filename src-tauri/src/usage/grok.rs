@@ -33,6 +33,52 @@ pub fn log_path() -> PathBuf {
         .unwrap_or_else(|_| default_log_path())
 }
 
+pub fn default_auth_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join(".grok")
+        .join("auth.json")
+}
+
+pub fn auth_path() -> PathBuf {
+    std::env::var("CODE_USAGE_GROK_AUTH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| default_auth_path())
+}
+
+/// Email of the newest credential in `auth.json`, shown on the panel avatar. Saved logins can
+/// pile up in that file, so the most recent `create_time` wins.
+pub fn read_account(path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+    let mut newest: Option<(Option<DateTime<Utc>>, String)> = None;
+    for credential in value.as_object()?.values() {
+        let Some(email) = credential
+            .get("email")
+            .and_then(|email| email.as_str())
+            .filter(|email| !email.is_empty())
+        else {
+            continue;
+        };
+        let created = credential
+            .get("create_time")
+            .and_then(|time| time.as_str())
+            .and_then(|time| DateTime::parse_from_rfc3339(time).ok())
+            .map(|time| time.with_timezone(&Utc));
+
+        if newest
+            .as_ref()
+            .map(|(current, _)| created > *current)
+            .unwrap_or(true)
+        {
+            newest = Some((created, email.to_string()));
+        }
+    }
+
+    newest.map(|(_, email)| email)
+}
+
 pub fn parse_line(line: &str) -> Option<GrokEvent> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     let message = value.get("msg")?.as_str()?;
@@ -147,6 +193,8 @@ mod tests {
     use crate::usage::window;
     use chrono::Local;
     use chrono::TimeZone;
+    use std::fs;
+    use tempfile::TempDir;
 
     fn fixture_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -232,6 +280,33 @@ mod tests {
             .records
             .iter()
             .all(|record| record.timestamp >= recent_since));
+    }
+
+    #[test]
+    fn reads_the_newest_account_email() {
+        let path = fixture_path().with_file_name("auth.json");
+
+        assert_eq!(
+            read_account(&path).as_deref(),
+            Some("new-fixture@example.com")
+        );
+        assert_eq!(
+            read_account(&fixture_path().with_file_name("missing.json")),
+            None
+        );
+    }
+
+    #[test]
+    fn ignores_credentials_without_an_email() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("auth.json");
+        fs::write(
+            &path,
+            r#"{"https://auth.x.ai::client":{"auth_mode":"oidc","user_id":"user"}}"#,
+        )
+        .expect("writes auth file");
+
+        assert_eq!(read_account(&path), None);
     }
 
     #[test]

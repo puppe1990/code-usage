@@ -54,6 +54,21 @@ pub fn read_api_key(path: &Path) -> Result<String, CollectError> {
         .ok_or_else(|| CollectError::Failed(format!("{}: sem api key", path.display())))
 }
 
+/// OpenCode credential the app bills against, shown on the panel avatar. The CLI stores no
+/// email, so the key pair in `auth.json` is the closest thing to an account.
+pub fn read_account(path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let value: Value = serde_json::from_str(&content).ok()?;
+    let credentials = value.as_object()?;
+
+    if credentials.contains_key("opencode-go") {
+        return Some("OpenCode Go".to_string());
+    }
+    credentials
+        .contains_key("opencode")
+        .then(|| "OpenCode Zen".to_string())
+}
+
 fn parse_window(value: Option<&Value>) -> Option<OpenCodeGoWindow> {
     let value = value?;
     let percent = value.get("percent").and_then(|percent| percent.as_f64())?;
@@ -212,6 +227,24 @@ mod tests {
             read_api_key(&dir.path().join("missing.json")),
             Err(CollectError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn reads_the_account_label_from_the_auth_file() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("auth.json");
+        fs::write(&path, fixture("auth.json")).expect("writes fixture");
+
+        assert_eq!(read_account(&path).as_deref(), Some("OpenCode Go"));
+
+        fs::write(
+            &path,
+            r#"{"opencode":{"type":"api","key":"zen-fixture-key"}}"#,
+        )
+        .expect("writes auth file");
+        assert_eq!(read_account(&path).as_deref(), Some("OpenCode Zen"));
+
+        assert_eq!(read_account(&dir.path().join("missing.json")), None);
     }
 
     #[test]
