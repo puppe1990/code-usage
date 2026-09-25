@@ -63,6 +63,17 @@ export interface OpenCodeGoLimits {
 
 export type FavoriteId = "grok" | "commandCode" | "openCode";
 
+export interface AccountEntry {
+  name: string;
+  active: boolean;
+}
+
+export interface AccountMenuState {
+  provider: ProviderId;
+  accounts?: AccountEntry[];
+  error?: string;
+}
+
 export interface ProviderUsage {
   provider: ProviderId;
   status: ProviderStatus;
