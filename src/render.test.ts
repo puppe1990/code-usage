@@ -192,18 +192,22 @@ describe("panelHtml", () => {
     expect(html.match(/class="provider-logo"/g) ?? []).toHaveLength(3);
   });
 
-  it("renders one account avatar per harness, with the plan in the tooltip", () => {
+  it("renders one account switch per harness, with the plan in the tooltip", () => {
     const html = panelHtml(snapshot);
 
     expect(html.match(/class="account"/g) ?? []).toHaveLength(3);
-    expect(html).toContain('class="account" title="matheuspuppe1whs · GOAT">M</span>');
     expect(html).toContain(
-      'class="account" title="ericasantiago240@gmail.com · SuperGrok">E</span>',
+      '<button class="account" data-accounts="commandCode" title="matheuspuppe1whs · GOAT · trocar conta"><span class="account-name">matheuspuppe1whs</span><span class="account-caret" aria-hidden="true">▾</span></button>',
     );
-    expect(html).toContain('class="account" title="OpenCode Go">O</span>');
+    expect(html).toContain(
+      '<button class="account" data-accounts="grok" title="ericasantiago240@gmail.com · SuperGrok · trocar conta"><span class="account-name">ericasantiago240@gmail.com</span>',
+    );
+    expect(html).toContain(
+      '<button class="account" data-accounts="openCode" title="OpenCode Go · trocar conta"><span class="account-name">Go</span>',
+    );
   });
 
-  it("skips the avatar when the harness reports no account", () => {
+  it("skips the switch when the harness reports no account", () => {
     const anonymous = structuredClone(snapshot);
     for (const provider of anonymous.providers) delete provider.account;
 
@@ -218,6 +222,82 @@ describe("panelHtml", () => {
 
     expect(html).not.toContain("<script>");
     expect(html).toContain("&quot;&gt;&lt;script&gt;");
+  });
+
+  it("keeps the account menu closed until the badge is clicked", () => {
+    expect(panelHtml(snapshot)).not.toContain('class="account-menu"');
+    expect(panelHtml(snapshot)).not.toContain('class="account open"');
+  });
+
+  it("lists the harness accounts in the open menu, marking the active one", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, {
+      provider: "grok",
+      accounts: [
+        { name: "pessoal", active: true },
+        { name: "trabalho", active: false },
+      ],
+    });
+
+    expect(html).toContain('<button class="account open" data-accounts="grok"');
+    expect(html).toContain('<div class="account-menu" data-menu="grok">');
+    expect(html).toContain(
+      '<button class="account-item active" data-switch="grok" data-name="pessoal"><span>pessoal</span><span class="account-active">atual</span></button>',
+    );
+    expect(html).toContain(
+      '<button class="account-item" data-switch="grok" data-name="trabalho"><span>trabalho</span></button>',
+    );
+    expect(html.match(/class="account-item/g) ?? []).toHaveLength(2);
+  });
+
+  it("renders the menu only inside its own card", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, {
+      provider: "openCode",
+      accounts: [],
+    });
+    const cards = html.split('<section class="card"').slice(1);
+
+    expect(html.match(/<div class="account-menu"/g) ?? []).toHaveLength(1);
+    expect(cards[0]).not.toContain("account-menu");
+    expect(cards[1]).not.toContain("account-menu");
+    expect(cards[2]).toContain('<div class="account-menu" data-menu="openCode">');
+  });
+
+  it("shows a loading line while the account list is on its way", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, { provider: "grok" });
+
+    expect(html).toContain('<p class="account-hint">carregando…</p>');
+  });
+
+  it("tells what to do when the harness has no saved login", () => {
+    const commandCode = panelHtml(snapshot, null, new Set(), false, {
+      provider: "commandCode",
+      accounts: [],
+    });
+    const grok = panelHtml(snapshot, null, new Set(), false, { provider: "grok", accounts: [] });
+
+    expect(commandCode).toContain("use ccs save &lt;nome&gt;");
+    expect(grok).toContain("nenhum perfil salvo em ~/.grok/accounts");
+  });
+
+  it("surfaces a switch failure inside the menu", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, {
+      provider: "grok",
+      accounts: [{ name: "pessoal", active: true }],
+      error: 'conta "nope" não existe',
+    });
+
+    expect(html).toContain('<p class="account-error">conta &quot;nope&quot; não existe</p>');
+    expect(html).not.toContain("account-item");
+  });
+
+  it("escapes the account name handed to the switch button", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, {
+      provider: "commandCode",
+      accounts: [{ name: 'a"><script>x</script>', active: false }],
+    });
+
+    expect(html).not.toContain("<script>");
+    expect(html).toContain('data-name="a&quot;&gt;&lt;script&gt;x&lt;/script&gt;"');
   });
 
   it("collapses the harness cards unless they are expanded", () => {

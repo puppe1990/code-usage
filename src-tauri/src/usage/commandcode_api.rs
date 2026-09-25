@@ -81,6 +81,11 @@ pub fn cached_limits() -> Option<CommandCodeLimits> {
     CACHE.last()
 }
 
+/// Drops the cached limits; the next refresh fetches them for whatever account is live then.
+pub fn forget_limits() {
+    CACHE.forget();
+}
+
 pub fn refresh_cache() -> Option<CommandCodeLimits> {
     CACHE.refresh(CACHE_TTL, || {
         let token = read_token(&auth_path()).ok()?;

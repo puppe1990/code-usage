@@ -13,6 +13,7 @@ A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **
 - **Menu bar mark:** the selected harness also picks the icon — each harness shows its own mark (Command Code, Grok, OpenCode) and the icon-only state keeps the gauge; the panel card headers repeat the same marks
 - **Click the icon:** a panel with one collapsible card per harness — the plan limits (the Grok weekly window; the Command Code weekly window as the main bar, with the plan, renewal, 5-hour/monthly windows, requests and credit balance below; the OpenCode Go 5h / weekly / monthly windows) are always visible, and clicking the card header reveals that harness' today / 7 days / 30 days totals with tokens (input, output, cache)
 - **Which account:** a round badge next to each harness name carries the account that CLI is logged in with — hover it for the name (`matheuspuppe1whs · GOAT`, `you@example.com · SuperGrok`, `OpenCode Go`)
+- **Switch account:** clicking that badge opens the logins saved for the harness (the very stores the [`agent-account-switchers`](https://github.com/puppe1990/agent-account-switchers) CLIs keep) and picking one points the CLI at it; `ccs save <nome>` / `ocgs save <nome>` / `grok-accounts` remain the way to add them
 - **Local by default:** costs and tokens come only from the files each CLI already writes to disk. The only network calls read your plan limits (Command Code and OpenCode Go) using credentials the CLIs themselves store — see below.
 
 ## Data sources
@@ -25,6 +26,7 @@ A macOS menu bar app that shows your usage for **Command Code**, **Grok** and **
 | OpenCode                   | `~/.local/share/opencode/opencode.db` (SQLite, read-only)                                               | `message` table, JSON payload with `cost` and `tokens`                                                                                                                                             |
 | OpenCode Go (plan limits)  | `opencode.ai/zen/go/v1/usage`                                                                           | the `usage.rolling` / `usage.weekly` / `usage.monthly` windows (percentage and reset instant), authenticated with the `opencode-go` API key from `~/.local/share/opencode/auth.json`               |
 | Account (panel badge)      | `~/.commandcode/auth.json`, `~/.grok/auth.json`, `~/.local/share/opencode/auth.json`                    | the logged in `userName`, the newest credential `email` and the OpenCode credential name, shown on the round badge of each card                                                                    |
+| Accounts (switch menu)     | `~/.commandcode/ccs-accounts.json`, `~/.grok/accounts/*.json`, `~/.local/share/opencode/account.json`   | the logins saved per harness and which one is live; switching rewrites the three `auth.json` above atomically (mode `0600`), the same way `ccs` / `ocgs` / `switcher-ui` do                        |
 
 Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_USAGE_GROK_LOG`, `CODE_USAGE_GROK_AUTH`, `CODE_USAGE_OPENCODE_DB`, `CODE_USAGE_CC_AUTH`, `CODE_USAGE_CC_API_BASE`, `CODE_USAGE_OPENCODE_AUTH`, `CODE_USAGE_OPENCODE_GO_URL`.
 
@@ -35,6 +37,7 @@ Paths can be overridden with environment variables: `CODE_USAGE_CC_ROOT`, `CODE_
 - **Grok** only refreshes the percentage when the CLI runs; the panel shows "updated X ago" based on the latest event.
 - **OpenCode** does not compute a cost for every message (messages without `cost` count as $0, but their tokens still count).
 - **OpenCode (account)** stores no email or profile locally, so its badge shows the credential behind the plan (`OpenCode Go`, or `OpenCode Zen` without the Go key) instead of an account name.
+- **Switching accounts** writes the same credential files the CLIs use — both sides see the change, and nothing is written when the account does not exist. It only applies to the next launch: sessions already open keep the account they started with, and the Grok card keeps the last log numbers until that CLI runs again. Switching the Command Code account replaces the live `auth.json`, so run `ccs save <nome>` first if the current login is not in the ledger yet. The plan limits cached for the account that just left are dropped and fetched again.
 
 ## Behavior
 

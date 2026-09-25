@@ -128,6 +128,11 @@ pub fn cached_limits() -> Option<OpenCodeGoLimits> {
     CACHE.last()
 }
 
+/// Drops the cached limits; the next refresh fetches them for whatever account is live then.
+pub fn forget_limits() {
+    CACHE.forget();
+}
+
 /// Refreshes when the 5-minute cache is stale, keeping the last value on failure.
 pub fn refresh_cache() -> Option<OpenCodeGoLimits> {
     CACHE.refresh(CACHE_TTL, || {

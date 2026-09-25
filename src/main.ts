@@ -1,7 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { renderPanel } from "./render";
-import type { FavoriteId, ProviderId, UsageSnapshot } from "./types";
+import type {
+  AccountEntry,
+  AccountMenuState,
+  FavoriteId,
+  ProviderId,
+  UsageSnapshot,
+} from "./types";
 import "./styles.css";
 
 function requireRoot(): HTMLDivElement {
@@ -16,9 +22,23 @@ let latest: UsageSnapshot | null = null;
 let autostart = false;
 const expanded = new Set<ProviderId>();
 
+let accountMenu: ProviderId | null = null;
+const accountLists = new Map<ProviderId, AccountEntry[]>();
+const accountErrors = new Map<ProviderId, string>();
+
+function menuState(): AccountMenuState | null {
+  if (!accountMenu) return null;
+
+  return {
+    provider: accountMenu,
+    accounts: accountLists.get(accountMenu),
+    error: accountErrors.get(accountMenu),
+  };
+}
+
 function render(): void {
   if (latest) {
-    renderPanel(root, latest, favorite, expanded, autostart);
+    renderPanel(root, latest, favorite, expanded, autostart, menuState());
   }
 }
 
@@ -57,6 +77,44 @@ function toggleCollapse(provider: ProviderId): void {
   render();
 }
 
+function closeAccountMenu(): void {
+  accountMenu = null;
+  render();
+}
+
+function toggleAccountMenu(provider: ProviderId): void {
+  if (accountMenu === provider) {
+    closeAccountMenu();
+    return;
+  }
+
+  accountMenu = provider;
+  accountErrors.delete(provider);
+  render();
+  void loadAccounts(provider);
+}
+
+async function loadAccounts(provider: ProviderId): Promise<void> {
+  try {
+    accountLists.set(provider, await invoke<AccountEntry[]>("list_accounts", { provider }));
+  } catch (error) {
+    accountErrors.set(provider, String(error));
+  }
+  if (accountMenu === provider) render();
+}
+
+async function switchAccount(provider: ProviderId, name: string): Promise<void> {
+  accountErrors.delete(provider);
+  render();
+
+  try {
+    accountLists.set(provider, await invoke<AccountEntry[]>("switch_account", { provider, name }));
+  } catch (error) {
+    accountErrors.set(provider, String(error));
+  }
+  if (accountMenu === provider) render();
+}
+
 async function updateAutostart(enabled: boolean): Promise<void> {
   autostart = enabled;
   render();
@@ -77,6 +135,21 @@ document.addEventListener("click", (event) => {
     void toggleFavorite(favorite);
     return;
   }
+
+  const item = target.closest<HTMLElement>("[data-switch]");
+  if (item?.dataset.switch && item.dataset.name) {
+    void switchAccount(item.dataset.switch as ProviderId, item.dataset.name);
+    return;
+  }
+
+  const badge = target.closest<HTMLElement>("[data-accounts]");
+  if (badge?.dataset.accounts) {
+    toggleAccountMenu(badge.dataset.accounts as ProviderId);
+    return;
+  }
+
+  if (accountMenu && !target.closest("[data-menu]")) closeAccountMenu();
+
   const header = target.closest<HTMLElement>("[data-collapse]");
   if (header?.dataset.collapse) {
     toggleCollapse(header.dataset.collapse as ProviderId);
@@ -96,11 +169,22 @@ document.addEventListener("change", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (accountMenu) {
+      closeAccountMenu();
+      return;
+    }
     void invoke("hide_panel");
     return;
   }
   if (event.key !== "Enter" && event.key !== " ") return;
   if (!(event.target instanceof HTMLElement)) return;
+
+  const badge = event.target.closest<HTMLElement>("[data-accounts]");
+  if (badge?.dataset.accounts) {
+    event.preventDefault();
+    toggleAccountMenu(badge.dataset.accounts as ProviderId);
+    return;
+  }
 
   const header = event.target.closest<HTMLElement>("[data-collapse]");
   if (!header?.dataset.collapse) return;

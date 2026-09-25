@@ -29,6 +29,14 @@ impl<T: Clone> LimitsCache<T> {
             .and_then(|guard| guard.as_ref().map(|entry| entry.limits.clone()))
     }
 
+    /// Drops the stored value so the next `refresh` fetches again — used after switching accounts,
+    /// when the cached limits belong to the account that just left.
+    pub fn forget(&self) {
+        if let Ok(mut guard) = self.inner.lock() {
+            *guard = None;
+        }
+    }
+
     /// Refreshes when the TTL is stale, keeping the last value when `fetch` fails.
     pub fn refresh(&self, ttl: Duration, fetch: impl FnOnce() -> Option<T>) -> Option<T> {
         if let Some(limits) = self.fresh(ttl) {
@@ -104,5 +112,22 @@ mod tests {
 
         cache.refresh(Duration::from_secs(300), || Some(9));
         assert_eq!(cache.last(), Some(9));
+    }
+
+    #[test]
+    fn forget_makes_the_next_refresh_fetch_again() {
+        let cache: LimitsCache<u32> = LimitsCache::new();
+        let calls = Cell::new(0);
+        let fetch = || {
+            calls.set(calls.get() + 1);
+            Some(calls.get())
+        };
+
+        cache.refresh(Duration::from_secs(300), fetch);
+        cache.forget();
+
+        assert_eq!(cache.last(), None);
+        assert_eq!(cache.refresh(Duration::from_secs(300), fetch), Some(2));
+        assert_eq!(calls.get(), 2);
     }
 }

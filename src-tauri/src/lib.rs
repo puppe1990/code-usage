@@ -1,6 +1,7 @@
 //! App wiring: plugins (autostart), shared state, the tray + refresh loop, and the focus
 //! behavior that hides the panel.
 
+mod accounts;
 mod commands;
 mod preferences;
 mod refresh;
@@ -66,6 +67,8 @@ pub fn run() {
             commands::get_autostart,
             commands::set_autostart,
             commands::refresh_now,
+            commands::list_accounts,
+            commands::switch_account,
             commands::hide_panel,
             commands::quit_app
         ])

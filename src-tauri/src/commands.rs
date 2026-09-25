@@ -1,9 +1,10 @@
 //! IPC surface called by the panel (`invoke` in src/main.ts).
 
+use crate::accounts::{self, Account};
 use crate::preferences::{Favorite, Preferences};
 use crate::refresh;
 use crate::tray;
-use crate::usage::UsageSnapshot;
+use crate::usage::{self, Provider, UsageSnapshot};
 use crate::AppState;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
@@ -72,6 +73,32 @@ pub async fn refresh_now(app: AppHandle) -> Result<(), String> {
     std::thread::spawn(move || {
         refresh::refresh_and_publish(&handle);
     });
+    Ok(())
+}
+
+#[tauri::command]
+/// Logins saved for a harness, with the active one marked (`agent-account-switchers` stores).
+pub fn list_accounts(provider: Provider) -> Result<Vec<Account>, String> {
+    accounts::list(provider)
+}
+
+#[tauri::command]
+/// Switches the harness to `name`, drops the plan limits cached for the account that just left,
+/// and recomputes on a worker thread so the panel and the tray follow.
+pub fn switch_account(app: AppHandle, provider: Provider, name: String) -> Result<(), String> {
+    accounts::switch(provider, &name)?;
+
+    match provider {
+        Provider::CommandCode => usage::commandcode_api::forget_limits(),
+        Provider::OpenCode => usage::opencode_go::forget_limits(),
+        Provider::Grok => {}
+    }
+
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        refresh::refresh_and_publish(&handle);
+    });
+
     Ok(())
 }
 

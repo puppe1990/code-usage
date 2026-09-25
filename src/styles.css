@@ -119,23 +119,100 @@ body {
   vertical-align: -2px;
 }
 
-/* round avatar next to the harness name: the tooltip carries the account */
+/* account behind the harness: its own line under the title, the caret says it switches */
 .account {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  margin-left: 6px;
-  border-radius: 50%;
-  background: rgba(96, 165, 250, 0.2);
-  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.25);
+  gap: 3px;
+  max-width: 100%;
+  margin: 3px 0 0 19px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #93a0b4;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-caret {
+  flex: none;
+  font-size: 8px;
+  transition: transform 0.15s ease;
+}
+
+.account:hover,
+.account.open {
   color: #bfdbfe;
+}
+
+.account.open .account-caret {
+  transform: rotate(180deg);
+}
+
+.account-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.account-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 7px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #e8ecf3;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: left;
+  word-break: break-all;
+  cursor: pointer;
+}
+
+.account-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.account-item.active {
+  color: #bfdbfe;
+}
+
+.account-active {
+  flex: none;
+  color: #6b7688;
   font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  vertical-align: -2px;
-  cursor: default;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.account-hint,
+.account-error {
+  padding: 4px 7px;
+  font-size: 11px;
+  color: #93a0b4;
+}
+
+.account-error {
+  color: #f87171;
+  word-break: break-all;
 }
 
 /* the OpenCode mark is drawn for light backgrounds: invert it for the dark panel */
