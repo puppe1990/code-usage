@@ -584,13 +584,13 @@ describe("panelHtml", () => {
     }
   });
 
-  it("makes Overview cards draggable and leaves the single-harness card still", () => {
+  it("puts a drag handle on Overview cards and leaves the single-harness card still", () => {
     const overview = panelHtml(snapshot);
     const grokTab = panelHtml(snapshot, null, new Set(), false, null, "grok");
 
-    expect(overview).toContain('data-provider="commandCode" draggable="true"');
-    expect(overview).toContain('data-provider="grok" draggable="true"');
-    expect(grokTab).not.toContain('draggable="true"');
+    expect(overview).toContain('data-drag="commandCode"');
+    expect(overview).toContain('data-drag="grok"');
+    expect(grokTab).not.toContain("data-drag=");
   });
 
   it("moves a harness to another slot in the order", () => {

@@ -407,9 +407,10 @@ function card(
   const planHtml = plan ? `<span class="card-plan">${escapeHtml(plan)}</span>` : "";
   const accountHtml = accountSwitch(usage, menu?.provider === usage.provider);
   return `
-    <section class="card${isExpanded ? " expanded" : ""}" data-provider="${usage.provider}"${draggable ? ' draggable="true"' : ""}>
+    <section class="card${isExpanded ? " expanded" : ""}" data-provider="${usage.provider}">
       <header class="card-head">
         <div class="card-title-row">
+          ${draggable ? `<button type="button" class="drag-handle" data-drag="${usage.provider}" aria-label="Reordenar">⋮⋮</button>` : ""}
           <h2>${providerHeading(usage.provider)}</h2>
           ${star(usage.provider, favorite === usage.provider)}
         </div>

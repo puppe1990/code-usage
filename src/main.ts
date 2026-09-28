@@ -229,65 +229,85 @@ async function updateAutostart(enabled: boolean): Promise<void> {
   render();
 }
 
-let draggingCard = false;
+let drag: { from: ProviderId; pointerId: number; startY: number; active: boolean } | null = null;
 
-function dragCard(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof HTMLElement)) return null;
+function providerAtPoint(x: number, y: number): ProviderId | null {
+  for (const card of root.querySelectorAll<HTMLElement>(".cards .card[data-provider]")) {
+    const box = card.getBoundingClientRect();
+    if (y >= box.top && y <= box.bottom && x >= box.left && x <= box.right) {
+      return (card.dataset.provider as ProviderId | undefined) ?? null;
+    }
+  }
+  return null;
+}
+
+function markDropTarget(id: ProviderId | null): void {
+  for (const card of root.querySelectorAll<HTMLElement>(".cards .card[data-provider]")) {
+    card.classList.toggle(
+      "drop-target",
+      Boolean(id) && card.dataset.provider === id && id !== drag?.from,
+    );
+    card.classList.toggle("dragging", card.dataset.provider === drag?.from);
+  }
+}
+
+function endDrag(): void {
+  drag = null;
+  for (const card of root.querySelectorAll(".card.dragging, .card.drop-target")) {
+    card.classList.remove("dragging", "drop-target");
+  }
+}
+
+function reorderFrom(target: HTMLElement): { from: ProviderId; handle: HTMLElement } | null {
+  const handle = target.closest<HTMLElement>("[data-drag]");
+  if (handle?.dataset.drag) {
+    return { from: handle.dataset.drag as ProviderId, handle };
+  }
   if (
     target.closest(
-      "button, input, a, label, [data-collapse], [data-accounts], [data-favorite], [data-menu], [data-tab], [data-settings], [data-move]",
+      "button, input, a, [data-collapse], [data-accounts], [data-favorite], [data-menu]",
     )
   ) {
     return null;
   }
-  return target.closest(".card[data-provider]");
+  const card = target
+    .closest<HTMLElement>(".card-head")
+    ?.closest<HTMLElement>(".card[data-provider]");
+  const from = card?.dataset.provider as ProviderId | undefined;
+  if (!from || !card) return null;
+  return { from, handle: card };
 }
 
-document.addEventListener("dragstart", (event) => {
-  const card = dragCard(event.target);
-  if (tab !== "overview" || !card?.dataset.provider || !event.dataTransfer) {
-    event.preventDefault();
-    return;
-  }
-  draggingCard = true;
-  event.dataTransfer.effectAllowed = "move";
-  event.dataTransfer.setData("text/plain", card.dataset.provider);
-  card.classList.add("dragging");
-});
-
-document.addEventListener("dragover", (event) => {
-  if (!(event.target instanceof HTMLElement) || tab !== "overview") return;
-  const card = event.target.closest<HTMLElement>(".card[data-provider]");
-  if (!card) return;
+document.addEventListener("pointerdown", (event) => {
+  if (tab !== "overview" || event.button !== 0 || !(event.target instanceof HTMLElement)) return;
+  const source = reorderFrom(event.target);
+  if (!source) return;
   event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-  for (const other of root.querySelectorAll(".card.drop-target")) {
-    if (other !== card) other.classList.remove("drop-target");
-  }
-  if (!card.classList.contains("dragging")) card.classList.add("drop-target");
+  source.handle.setPointerCapture(event.pointerId);
+  drag = { from: source.from, pointerId: event.pointerId, startY: event.clientY, active: false };
 });
 
-document.addEventListener("drop", (event) => {
-  if (!(event.target instanceof HTMLElement)) return;
-  const card = event.target.closest<HTMLElement>(".card[data-provider]");
-  const from = event.dataTransfer?.getData("text/plain") as ProviderId | undefined;
-  const to = card?.dataset.provider;
-  event.preventDefault();
-  if (!from || !to) return;
-  placeHarness(from, to as ProviderId);
+document.addEventListener("pointermove", (event) => {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  if (!drag.active && Math.abs(event.clientY - drag.startY) < 8) return;
+  drag.active = true;
+  markDropTarget(providerAtPoint(event.clientX, event.clientY));
 });
 
-document.addEventListener("dragend", () => {
-  for (const card of root.querySelectorAll(".card.dragging, .card.drop-target")) {
-    card.classList.remove("dragging", "drop-target");
-  }
-  window.setTimeout(() => {
-    draggingCard = false;
-  }, 0);
+document.addEventListener("pointerup", (event) => {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const from = drag.from;
+  const moved = drag.active;
+  const to = moved ? providerAtPoint(event.clientX, event.clientY) : null;
+  endDrag();
+  if (moved && to) placeHarness(from, to);
+});
+
+document.addEventListener("pointercancel", (event) => {
+  if (drag && event.pointerId === drag.pointerId) endDrag();
 });
 
 document.addEventListener("click", (event) => {
-  if (draggingCard) return;
   const target = event.target as HTMLElement;
   const favorite = target.dataset.favorite as FavoriteId | undefined;
 
