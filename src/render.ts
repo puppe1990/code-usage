@@ -337,32 +337,68 @@ function openCodeGoSection(limits: OpenCodeGoLimits): string {
     </div>`;
 }
 
+type CodexSlot = "5h" | "weekly" | "monthly";
+
 /** Codex labels every window by its own length: the free plan reports a single monthly one. */
-function codexWindowLabel(minutes: number | null | undefined, fallback: string): string {
+function codexSlot(window: CodexWindow, fallback: CodexSlot): CodexSlot {
+  const minutes = window.windowMinutes;
   if (minutes === null || minutes === undefined) return fallback;
   if (minutes <= 6 * 60) return "5h";
-  if (minutes <= 7 * 24 * 60) return "W";
-  return "M";
+  if (minutes <= 7 * 24 * 60) return "weekly";
+  return "monthly";
 }
 
-function codexWindow(window: CodexWindow | null | undefined, fallback: string): string {
-  if (!window) return "";
+function codexBuckets(limits: CodexLimits): {
+  fiveHour?: CodexWindow;
+  weekly?: CodexWindow;
+  monthly?: CodexWindow;
+} {
+  const buckets: { fiveHour?: CodexWindow; weekly?: CodexWindow; monthly?: CodexWindow } = {};
+  const slots: Array<[CodexWindow | null | undefined, CodexSlot]> = [
+    [limits.primary, "5h"],
+    [limits.secondary, "weekly"],
+    [limits.monthly, "monthly"],
+  ];
+  for (const [window, fallback] of slots) {
+    if (!window) continue;
+    const slot = codexSlot(window, fallback);
+    if (slot === "5h") buckets.fiveHour ??= window;
+    else if (slot === "weekly") buckets.weekly ??= window;
+    else buckets.monthly ??= window;
+  }
+  return buckets;
+}
 
-  const reset = window.resetsAt ? formatResetCountdown(window.resetsAt) : "sem reset informado";
-  return windowRowDetail(
-    codexWindowLabel(window.windowMinutes, fallback),
-    window.percentUsed,
-    reset,
-  );
+function codexReset(window: CodexWindow): string {
+  return window.resetsAt ? formatResetCountdown(window.resetsAt) : "sem reset informado";
 }
 
 function codexSection(limits: CodexLimits): string {
-  const windows = [codexWindow(limits.primary, "5h"), codexWindow(limits.secondary, "W")].join("");
-  if (!windows.trim()) return "";
+  const { fiveHour, weekly, monthly } = codexBuckets(limits);
+  const heading = weekly
+    ? `
+      <div class="limit-heading">
+        <span>${formatPercent(weekly.percentUsed)} do período semanal</span>
+        <span>${codexReset(weekly)}</span>
+      </div>
+      ${limitBar(weekly.percentUsed)}`
+    : monthly
+      ? `
+      <div class="limit-heading">
+        <span>${formatPercent(monthly.percentUsed)} usado</span>
+        <span>${codexReset(monthly)}</span>
+      </div>
+      ${limitBar(monthly.percentUsed)}`
+      : "";
+  const rows = [
+    fiveHour ? windowRowDetail("5h", fiveHour.percentUsed, codexReset(fiveHour)) : "",
+    weekly && monthly ? windowRowDetail("mensal", monthly.percentUsed, codexReset(monthly)) : "",
+  ].join("");
+  if (!heading.trim() && !rows.trim()) return "";
 
   return `
     <div class="limit">
-      ${windows}
+      ${heading}${rows}
     </div>`;
 }
 

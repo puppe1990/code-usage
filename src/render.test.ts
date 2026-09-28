@@ -121,6 +121,7 @@ const snapshot: UsageSnapshot = {
       codex: {
         primary: { percentUsed: 18, windowMinutes: 300, resetsAt: goResetAt },
         secondary: { percentUsed: 4.6, windowMinutes: 10080, resetsAt: resetAt },
+        monthly: { percentUsed: 12, windowMinutes: 43200, resetsAt: resetAt },
         plan: "plus",
         fetchedAt: new Date().toISOString(),
       },
@@ -197,16 +198,35 @@ describe("panelHtml", () => {
     expect(html).toContain("77% do período semanal");
   });
 
-  it("renders the Codex windows labelled by their own length", () => {
+  it("renders the Codex weekly window as the largest bar, with 5h and mensal below", () => {
     const codex = panelHtml(snapshot).split('<section class="card"').slice(1)[3];
 
     expect(codex).toContain('<span class="card-plan">plus</span>');
+    expect(codex).toContain("5% do período semanal");
+    expect(codex).toContain('class="limit-bar"><div class="limit-fill" style="width:4.6%');
     expect(codex).toContain('<span class="window-label">5h</span>');
     expect(codex).toContain('class="limit-bar small"><div class="limit-fill" style="width:18.0%');
     expect(codex).toContain('<span class="window-meta">18% · reseta em');
-    expect(codex).toContain('<span class="window-label">W</span>');
-    expect(codex).toContain('<span class="window-meta">5% · reseta em');
+    expect(codex).toContain('<span class="window-label">mensal</span>');
+    expect(codex).toContain('class="limit-bar small"><div class="limit-fill" style="width:12.0%');
+    expect(codex).not.toContain('<span class="window-label">W</span>');
     expect(codex).not.toContain('<span class="window-label">M</span>');
+  });
+
+  it("omits the Codex mensal row when the plan has no monthly window", () => {
+    const plus = structuredClone(snapshot);
+    plus.providers[3].codex = {
+      primary: { percentUsed: 18, windowMinutes: 300, resetsAt: goResetAt },
+      secondary: { percentUsed: 4.6, windowMinutes: 10080, resetsAt: resetAt },
+      plan: "plus",
+      fetchedAt: new Date().toISOString(),
+    };
+
+    const codex = panelHtml(plus).split('<section class="card"').slice(1)[3];
+
+    expect(codex).toContain("5% do período semanal");
+    expect(codex).toContain('<span class="window-label">5h</span>');
+    expect(codex).not.toContain('<span class="window-label">mensal</span>');
   });
 
   it("labels the single monthly window of a free Codex plan", () => {
@@ -220,10 +240,11 @@ describe("panelHtml", () => {
     const codex = panelHtml(free).split('<section class="card"').slice(1)[3];
 
     expect(codex).toContain('<span class="card-plan">free</span>');
-    expect(codex).toContain('<span class="window-label">M</span>');
-    expect(codex).toContain('<span class="window-meta">100% · reseta em');
+    expect(codex).toContain("100% usado");
+    expect(codex).toContain('class="limit-bar"><div class="limit-fill" style="width:100.0%');
     expect(codex).not.toContain('<span class="window-label">5h</span>');
     expect(codex).not.toContain('<span class="window-label">W</span>');
+    expect(codex).not.toContain('<span class="window-label">mensal</span>');
   });
 
   it("shows tokens instead of a price on the Codex card", () => {

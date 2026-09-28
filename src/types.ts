@@ -74,6 +74,7 @@ export interface CodexWindow {
 export interface CodexLimits {
   primary?: CodexWindow | null;
   secondary?: CodexWindow | null;
+  monthly?: CodexWindow | null;
   plan?: string | null;
   fetchedAt: string;
 }

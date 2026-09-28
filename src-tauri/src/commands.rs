@@ -6,7 +6,7 @@ use crate::refresh;
 use crate::tray;
 use crate::usage::{self, Provider, UsageSnapshot};
 use crate::AppState;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, LogicalSize, Manager, Size, State};
 use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
@@ -174,6 +174,19 @@ pub fn switch_account(
     });
 
     accounts::list(provider)
+}
+
+#[tauri::command]
+pub fn fit_panel(app: AppHandle, height: f64) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(tray::WINDOW_LABEL) else {
+        return Err("panel window missing".into());
+    };
+    let height = height.clamp(160.0, 820.0);
+    window
+        .set_size(Size::Logical(LogicalSize::new(360.0, height)))
+        .map_err(|error| error.to_string())?;
+    crate::appearance::apply(&window, current_preferences(&app).theme);
+    Ok(())
 }
 
 #[tauri::command]
