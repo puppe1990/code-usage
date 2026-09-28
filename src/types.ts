@@ -1,4 +1,4 @@
-export type ProviderId = "commandCode" | "grok" | "openCode";
+export type ProviderId = "commandCode" | "grok" | "openCode" | "codex";
 
 export interface TokenTotals {
   input: number;
@@ -61,7 +61,20 @@ export interface OpenCodeGoLimits {
   fetchedAt: string;
 }
 
-export type FavoriteId = "grok" | "commandCode" | "openCode";
+export interface CodexWindow {
+  percentUsed: number;
+  windowMinutes?: number | null;
+  resetsAt?: string | null;
+}
+
+export interface CodexLimits {
+  primary?: CodexWindow | null;
+  secondary?: CodexWindow | null;
+  plan?: string | null;
+  fetchedAt: string;
+}
+
+export type FavoriteId = "grok" | "commandCode" | "openCode" | "codex";
 
 export interface AccountEntry {
   name: string;
@@ -86,6 +99,7 @@ export interface ProviderUsage {
   grok?: GrokLimits | null;
   commandCode?: CommandCodeLimits | null;
   openCodeGo?: OpenCodeGoLimits | null;
+  codex?: CodexLimits | null;
 }
 
 export interface UsageSnapshot {

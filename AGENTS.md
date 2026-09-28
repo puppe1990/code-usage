@@ -1,7 +1,7 @@
 # Agent notes
 
-macOS menu bar app (Tauri v2 + Rust) showing usage for Command Code, Grok and OpenCode. The panel
-is plain TypeScript (Vite), no framework. `README.md` has the product story; this file is the
+macOS menu bar app (Tauri v2 + Rust) showing usage for Command Code, Grok, OpenCode and Codex. The
+panel is plain TypeScript (Vite), no framework. `README.md` has the product story; this file is the
 working rules.
 
 ## Commands (from the repo root)
@@ -22,13 +22,17 @@ The pre-commit hook and CI run these per changed path; run them yourself before 
 ## Layout
 
 - `src-tauri/src/usage/` — pure parsers: one module per CLI (`commandcode.rs`, `grok.rs`,
-  `opencode.rs`), plan limits (`commandcode_api.rs`, `opencode_go.rs`), time windows (`window.rs`)
-  and the tray title (`tray_title.rs`). `snapshot` in `usage/mod.rs` is the only entry point.
+  `opencode.rs`, `codex.rs`), plan limits (`commandcode_api.rs`, `opencode_go.rs`), time windows
+  (`window.rs`) and the tray title (`tray_title.rs`). `snapshot` in `usage/mod.rs` is the only entry
+  point.
+- `src-tauri/src/accounts/` — one module per harness for the switcher stores (`ccs`, `ocgs`,
+  `grok-accounts`, `codex-auth`); switching writes the live credential files atomically.
 - `src-tauri/src/{tray,refresh,commands}.rs` — menu bar item, 60s loop, IPC commands.
 - `src/` — panel: `render.ts` returns the HTML string, `main.ts` wires events, `format.ts` formats
   numbers. Tests sit next to the code (`*.test.ts`).
 - `src-tauri/icons/*.svg` — the only source of the harness marks. `scripts/svg-mark.mjs` rasterizes
-  them into the committed tray PNGs; never hand-edit a PNG, edit the SVG and regenerate.
+  them (fills and stroked outlines alike, `scripts/svg-mark.test.mjs` covers it) into the committed
+  tray PNGs; never hand-edit a PNG, edit the SVG and regenerate.
 
 ## Rules
 

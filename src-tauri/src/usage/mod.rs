@@ -2,6 +2,7 @@
 //! plan-limit caches. `snapshot` is the single entry point the rest of the app calls.
 
 mod cache;
+pub mod codex;
 pub mod commandcode;
 pub mod commandcode_api;
 mod commandcode_payload;
@@ -23,6 +24,7 @@ pub enum Provider {
     CommandCode,
     Grok,
     OpenCode,
+    Codex,
 }
 
 impl Provider {
@@ -31,6 +33,7 @@ impl Provider {
             Provider::CommandCode => "Command Code",
             Provider::Grok => "Grok",
             Provider::OpenCode => "OpenCode",
+            Provider::Codex => "Codex",
         }
     }
 }
@@ -115,6 +118,28 @@ pub struct GrokLimits {
     pub fetched_at: DateTime<Utc>,
 }
 
+/// One plan window of the Codex CLI: its length decides the label (`5h`, `W`, `M`), because the
+/// free plan reports a single monthly window while the paid ones report a 5-hour and a weekly one.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexWindow {
+    pub percent_used: f64,
+    pub window_minutes: Option<i64>,
+    pub resets_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexLimits {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary: Option<CodexWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secondary: Option<CodexWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    pub fetched_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowLimit {
@@ -170,6 +195,7 @@ pub struct ProviderLimits {
     pub grok: Option<GrokLimits>,
     pub command_code: Option<CommandCodeLimits>,
     pub open_code_go: Option<OpenCodeGoLimits>,
+    pub codex: Option<CodexLimits>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -190,6 +216,8 @@ pub struct ProviderUsage {
     pub command_code: Option<CommandCodeLimits>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_code_go: Option<OpenCodeGoLimits>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex: Option<CodexLimits>,
 }
 
 impl ProviderUsage {
@@ -213,6 +241,7 @@ impl ProviderUsage {
             grok: limits.grok,
             command_code: limits.command_code,
             open_code_go: limits.open_code_go,
+            codex: limits.codex,
         }
     }
 
@@ -229,6 +258,7 @@ impl ProviderUsage {
             grok: None,
             command_code: None,
             open_code_go: None,
+            codex: None,
         }
     }
 }
@@ -248,6 +278,7 @@ pub fn snapshot(now: DateTime<Local>) -> UsageSnapshot {
             command_code_usage(now),
             grok_usage(now),
             open_code_usage(now),
+            codex_usage(now),
         ],
     }
 }
@@ -271,12 +302,15 @@ fn command_code_usage(now: DateTime<Local>) -> ProviderUsage {
     }
 }
 
-/// Grok card: the CLI log (records and the weekly limits live in the same file).
+/// Grok card: the CLI log (records and the weekly limits live in the same file, the limits
+/// attributed to the account that is live now).
 fn grok_usage(now: DateTime<Local>) -> ProviderUsage {
     let since = window::start_of_day(now) - Duration::days(31);
-    let account = grok::read_account(&grok::auth_path());
+    let auth = grok::auth_path();
+    let account = grok::read_account(&auth);
+    let user_id = grok::live_user_id(&auth);
 
-    match grok::collect(&grok::log_path(), since) {
+    match grok::collect(&grok::log_path(), since, user_id.as_deref()) {
         Ok(data) => ProviderUsage::from_records(
             Provider::Grok,
             account,
@@ -308,6 +342,26 @@ fn open_code_usage(now: DateTime<Local>) -> ProviderUsage {
             },
         ),
         Err(error) => ProviderUsage::unavailable(Provider::OpenCode, error, account),
+    }
+}
+
+/// Codex card: the rollout files carry both the turn tokens and the plan windows the CLI last saw.
+fn codex_usage(now: DateTime<Local>) -> ProviderUsage {
+    let since = window::start_of_day(now) - Duration::days(31);
+    let account = codex::read_account(&codex::auth_path());
+
+    match codex::collect(&codex::home_path(), since) {
+        Ok(data) => ProviderUsage::from_records(
+            Provider::Codex,
+            account,
+            &data.records,
+            now,
+            ProviderLimits {
+                codex: data.limits,
+                ..ProviderLimits::default()
+            },
+        ),
+        Err(error) => ProviderUsage::unavailable(Provider::Codex, error, account),
     }
 }
 
@@ -362,6 +416,24 @@ mod smoke_tests {
                     limits.days_to_renew.unwrap_or(-1),
                     limits.five_hour.as_ref().map(|window| window.percent_used),
                     limits.weekly.as_ref().map(|window| window.percent_used),
+                );
+            }
+            if let Some(limits) = &usage.codex {
+                println!(
+                    "  codex: plan={:?} primary={:?}% ({} min) secondary={:?}% ({} min)",
+                    limits.plan,
+                    limits.primary.as_ref().map(|window| window.percent_used),
+                    limits
+                        .primary
+                        .as_ref()
+                        .and_then(|window| window.window_minutes)
+                        .unwrap_or(-1),
+                    limits.secondary.as_ref().map(|window| window.percent_used),
+                    limits
+                        .secondary
+                        .as_ref()
+                        .and_then(|window| window.window_minutes)
+                        .unwrap_or(-1),
                 );
             }
         }

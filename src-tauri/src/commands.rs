@@ -95,7 +95,8 @@ pub fn switch_account(
     match provider {
         Provider::CommandCode => usage::commandcode_api::forget_limits(),
         Provider::OpenCode => usage::opencode_go::forget_limits(),
-        Provider::Grok => {}
+        // Grok and Codex read the plan windows from what the CLI itself wrote: nothing is cached
+        Provider::Grok | Provider::Codex => {}
     }
 
     let handle = app.clone();

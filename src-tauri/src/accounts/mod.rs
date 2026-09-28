@@ -4,6 +4,7 @@
 //! the CLI itself reads. Everything is written atomically with mode `0600`, and a failure leaves
 //! the previous files untouched.
 
+mod codex;
 mod commandcode;
 mod grok;
 mod opencode;
@@ -27,6 +28,7 @@ pub fn list(provider: Provider) -> Result<Vec<Account>, String> {
         Provider::CommandCode => commandcode::list(),
         Provider::Grok => grok::list(),
         Provider::OpenCode => opencode::list(),
+        Provider::Codex => codex::list(),
     }
 }
 
@@ -36,6 +38,7 @@ pub fn switch(provider: Provider, name: &str) -> Result<(), String> {
         Provider::CommandCode => commandcode::switch(name),
         Provider::Grok => grok::switch(name),
         Provider::OpenCode => opencode::switch(name),
+        Provider::Codex => codex::switch(name),
     }
 }
 
@@ -186,12 +189,21 @@ mod smoke_tests {
             home.join(".local/share/opencode/account.json"),
             data.join("account.json"),
         );
+        let codex = data.join("codex");
+        copy(home.join(".codex/auth.json"), codex.join("auth.json"));
+        copy_profiles(home.join(".codex/accounts"), codex.join("accounts"));
 
         std::env::set_var("CODE_USAGE_CC_AUTH", data.join("auth.json"));
         std::env::set_var("CODE_USAGE_GROK_AUTH", data.join("grok-auth.json"));
         std::env::set_var("CODE_USAGE_OPENCODE_AUTH", data.join("opencode-auth.json"));
+        std::env::set_var("CODE_USAGE_CODEX_HOME", &codex);
 
-        for provider in [Provider::CommandCode, Provider::Grok, Provider::OpenCode] {
+        for provider in [
+            Provider::CommandCode,
+            Provider::Grok,
+            Provider::OpenCode,
+            Provider::Codex,
+        ] {
             let before = list(provider).expect("lists");
             println!("{provider:?} antes: {before:?}");
 
@@ -213,12 +225,17 @@ mod smoke_tests {
         std::env::remove_var("CODE_USAGE_CC_AUTH");
         std::env::remove_var("CODE_USAGE_GROK_AUTH");
         std::env::remove_var("CODE_USAGE_OPENCODE_AUTH");
+        std::env::remove_var("CODE_USAGE_CODEX_HOME");
     }
 
     fn copy(from: PathBuf, to: PathBuf) {
-        if from.exists() {
-            std::fs::copy(&from, &to).expect("copies");
+        if !from.exists() {
+            return;
         }
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent).expect("creates the parent dir");
+        }
+        std::fs::copy(&from, &to).expect("copies");
     }
 
     fn copy_profiles(from: PathBuf, to: PathBuf) {
@@ -228,11 +245,16 @@ mod smoke_tests {
         }
     }
 
-    /// Same as `ccs list` / `ocgs list`: only reads, never switches.
+    /// Same as `ccs list` / `ocgs list` / `codex-auth list`: only reads, never switches.
     #[test]
     #[ignore = "reads the real switcher stores from this machine"]
     fn prints_the_accounts_from_real_data() {
-        for provider in [Provider::CommandCode, Provider::Grok, Provider::OpenCode] {
+        for provider in [
+            Provider::CommandCode,
+            Provider::Grok,
+            Provider::OpenCode,
+            Provider::Codex,
+        ] {
             match list(provider) {
                 Ok(accounts) => {
                     for account in accounts {
