@@ -2,6 +2,7 @@
 //! behavior that hides the panel.
 
 mod accounts;
+mod base64url;
 mod commands;
 mod preferences;
 mod refresh;

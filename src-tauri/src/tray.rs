@@ -13,6 +13,7 @@ static GAUGE_ICON: &[u8] = include_bytes!("../icons/tray-icon.png");
 static COMMAND_CODE_ICON: &[u8] = include_bytes!("../icons/command-code.png");
 static GROK_ICON: &[u8] = include_bytes!("../icons/grok.png");
 static OPEN_CODE_ICON: &[u8] = include_bytes!("../icons/opencode.png");
+static CODEX_ICON: &[u8] = include_bytes!("../icons/codex.png");
 
 const EDGE_MARGIN: f64 = 8.0;
 const ICON_GAP: f64 = 6.0;
@@ -43,6 +44,7 @@ pub fn icon_bytes(favorite: Option<Favorite>) -> &'static [u8] {
         Some(Favorite::CommandCode) => COMMAND_CODE_ICON,
         Some(Favorite::Grok) => GROK_ICON,
         Some(Favorite::OpenCode) => OPEN_CODE_ICON,
+        Some(Favorite::Codex) => CODEX_ICON,
         None => GAUGE_ICON,
     }
 }
@@ -251,6 +253,7 @@ mod tests {
         assert_eq!(icon_bytes(Some(Favorite::CommandCode)), COMMAND_CODE_ICON);
         assert_eq!(icon_bytes(Some(Favorite::Grok)), GROK_ICON);
         assert_eq!(icon_bytes(Some(Favorite::OpenCode)), OPEN_CODE_ICON);
+        assert_eq!(icon_bytes(Some(Favorite::Codex)), CODEX_ICON);
         assert_eq!(icon_bytes(None), GAUGE_ICON);
     }
 

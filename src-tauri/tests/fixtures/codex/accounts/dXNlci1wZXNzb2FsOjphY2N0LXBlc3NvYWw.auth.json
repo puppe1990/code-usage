@@ -1,0 +1,11 @@
+{
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InBlc3NvYWxAZ21haWwuY29tIiwiaHR0cHM6Ly9hcGkub3BlbmFpLmNvbS9hdXRoIjp7ImNoYXRncHRfYWNjb3VudF9pZCI6ImFjY3QtcGVzc29hbCIsImNoYXRncHRfcGxhbl90eXBlIjoicHJvIiwiY2hhdGdwdF91c2VyX2lkIjoidXNlci1wZXNzb2FsIn19.fixture-signature",
+    "access_token": "pessoal-access-token",
+    "refresh_token": "pessoal-refresh-token",
+    "account_id": "acct-pessoal"
+  },
+  "last_refresh": "2026-08-28T12:00:00+00:00"
+}

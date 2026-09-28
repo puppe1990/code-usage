@@ -98,6 +98,33 @@ const snapshot: UsageSnapshot = {
         fetchedAt: new Date().toISOString(),
       },
     },
+    {
+      provider: "codex",
+      status: { state: "ok" },
+      account: "puppeicaropuppe@gmail.com",
+      today: {
+        costUsd: 0,
+        tokens: { input: 1000, output: 100, cacheRead: 800, cacheWrite: 0, reasoning: 0 },
+        records: 2,
+      },
+      last7d: {
+        costUsd: 0,
+        tokens: { input: 3000, output: 300, cacheRead: 1800, cacheWrite: 100, reasoning: 40 },
+        records: 2,
+      },
+      last30d: {
+        costUsd: 0,
+        tokens: { input: 3500, output: 350, cacheRead: 1800, cacheWrite: 100, reasoning: 40 },
+        records: 3,
+      },
+      lastRecordAt: new Date().toISOString(),
+      codex: {
+        primary: { percentUsed: 18, windowMinutes: 300, resetsAt: goResetAt },
+        secondary: { percentUsed: 4.6, windowMinutes: 10080, resetsAt: resetAt },
+        plan: "plus",
+        fetchedAt: new Date().toISOString(),
+      },
+    },
   ],
 };
 
@@ -170,6 +197,54 @@ describe("panelHtml", () => {
     expect(html).toContain("77% do período semanal · SuperGrok");
   });
 
+  it("renders the Codex windows labelled by their own length", () => {
+    const codex = panelHtml(snapshot).split('<section class="card"').slice(1)[3];
+
+    expect(codex).toContain('<span class="badge">plus</span>');
+    expect(codex).toContain('<span class="window-label">5h</span>');
+    expect(codex).toContain('class="limit-bar small"><div class="limit-fill" style="width:18.0%');
+    expect(codex).toContain('<span class="window-meta">18% · reseta em');
+    expect(codex).toContain('<span class="window-label">W</span>');
+    expect(codex).toContain('<span class="window-meta">5% · reseta em');
+    expect(codex).not.toContain('<span class="window-label">M</span>');
+  });
+
+  it("labels the single monthly window of a free Codex plan", () => {
+    const free = structuredClone(snapshot);
+    free.providers[3].codex = {
+      primary: { percentUsed: 100, windowMinutes: 43200, resetsAt: resetAt },
+      plan: "free",
+      fetchedAt: new Date().toISOString(),
+    };
+
+    const codex = panelHtml(free).split('<section class="card"').slice(1)[3];
+
+    expect(codex).toContain('<span class="badge">free</span>');
+    expect(codex).toContain('<span class="window-label">M</span>');
+    expect(codex).toContain('<span class="window-meta">100% · reseta em');
+    expect(codex).not.toContain('<span class="window-label">5h</span>');
+    expect(codex).not.toContain('<span class="window-label">W</span>');
+  });
+
+  it("shows tokens instead of a price on the Codex card", () => {
+    const codex = panelHtml(snapshot).split('<section class="card"').slice(1)[3];
+    const body = codex.slice(codex.indexOf('<div class="card-body">'));
+
+    expect(body).toContain("1.9k tokens");
+    expect(body).toContain("2 turnos");
+    expect(body).not.toContain("$");
+  });
+
+  it("leaves the Codex card without a limits block when the rollouts carry none", () => {
+    const bare = structuredClone(snapshot);
+    delete bare.providers[3].codex;
+
+    const codex = panelHtml(bare).split('<section class="card"').slice(1)[3];
+
+    expect(codex).not.toContain('class="limit"');
+    expect(codex).toContain("1.9k tokens");
+  });
+
   it("recognizes the active account when it omits the weekly percentage", () => {
     const switched = structuredClone(snapshot);
     switched.providers[1].grok!.creditUsagePercent = null;
@@ -185,19 +260,22 @@ describe("panelHtml", () => {
     const html = panelHtml(snapshot);
     const cards = html.split('<section class="card"').slice(1);
 
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(4);
     for (const markup of cards) {
       expect(markup).toMatch(/<h2><svg [^>]*class="provider-logo"/);
     }
-    expect(html.match(/class="provider-logo"/g) ?? []).toHaveLength(3);
+    expect(html.match(/class="provider-logo"/g) ?? []).toHaveLength(4);
   });
 
   it("renders one account switch per harness, with the plan in the tooltip", () => {
     const html = panelHtml(snapshot);
 
-    expect(html.match(/class="account"/g) ?? []).toHaveLength(3);
+    expect(html.match(/class="account"/g) ?? []).toHaveLength(4);
     expect(html).toContain(
       '<button class="account" data-accounts="commandCode" title="matheuspuppe1whs · GOAT · trocar conta"><span class="account-name">matheuspuppe1whs</span><span class="account-caret" aria-hidden="true">▾</span></button>',
+    );
+    expect(html).toContain(
+      '<button class="account" data-accounts="codex" title="puppeicaropuppe@gmail.com · plus · trocar conta"><span class="account-name">puppeicaropuppe@gmail.com</span>',
     );
     expect(html).toContain(
       '<button class="account" data-accounts="grok" title="ericasantiago240@gmail.com · SuperGrok · trocar conta"><span class="account-name">ericasantiago240@gmail.com</span>',
@@ -299,9 +377,11 @@ describe("panelHtml", () => {
       accounts: [],
     });
     const grok = panelHtml(snapshot, null, new Set(), false, { provider: "grok", accounts: [] });
+    const codex = panelHtml(snapshot, null, new Set(), false, { provider: "codex", accounts: [] });
 
     expect(commandCode).toContain("use ccs save &lt;nome&gt;");
     expect(grok).toContain("nenhum perfil salvo em ~/.grok/accounts");
+    expect(codex).toContain("use codex-auth login");
   });
 
   it("surfaces a switch failure inside the menu", () => {
@@ -329,7 +409,7 @@ describe("panelHtml", () => {
     const collapsed = panelHtml(snapshot);
 
     expect(collapsed.match(/class="card expanded"/g) ?? []).toHaveLength(0);
-    expect(collapsed.match(/aria-expanded="false"/g) ?? []).toHaveLength(3);
+    expect(collapsed.match(/aria-expanded="false"/g) ?? []).toHaveLength(4);
 
     const expanded = panelHtml(snapshot, null, new Set(["openCode"]));
 
@@ -341,7 +421,7 @@ describe("panelHtml", () => {
   it("keeps the totals inside the collapsible body of each card", () => {
     const cards = panelHtml(snapshot).split('<section class="card"').slice(1);
 
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(4);
     for (const markup of cards) {
       const body = markup.slice(markup.indexOf('<div class="card-body">'));
 
@@ -349,6 +429,35 @@ describe("panelHtml", () => {
       expect(body).toContain("7 dias");
       expect(body).toContain("30 dias");
     }
+  });
+
+  it("puts Custo on its own row, after the plan limits", () => {
+    const cards = panelHtml(snapshot).split('<section class="card"').slice(1);
+
+    expect(cards).toHaveLength(4);
+    for (const markup of cards) {
+      const head = markup.slice(0, markup.indexOf("cost-toggle"));
+      const custoAt = markup.indexOf('class="cost-toggle"');
+      const bodyAt = markup.indexOf('class="card-body"');
+
+      expect(head).not.toContain("data-collapse");
+      expect(head).not.toContain("chevron");
+      expect(markup).toContain("Custo");
+      expect(custoAt).toBeGreaterThan(markup.indexOf("card-head"));
+      expect(bodyAt).toBeGreaterThan(custoAt);
+    }
+  });
+
+  it("keeps the collapse control on the Custo row", () => {
+    const html = panelHtml(snapshot, null, new Set(["grok"]));
+
+    expect(html).toContain(
+      'class="cost-toggle" data-collapse="grok" role="button" tabindex="0" aria-expanded="true"',
+    );
+    expect(html).toContain(
+      'class="cost-toggle" data-collapse="commandCode" role="button" tabindex="0" aria-expanded="false"',
+    );
+    expect(html.match(/class="cost-toggle"/g) ?? []).toHaveLength(4);
   });
 
   it("renders the launch at login toggle", () => {
@@ -360,10 +469,10 @@ describe("panelHtml", () => {
   it("renders one star per harness in the card header", () => {
     const html = panelHtml(snapshot, null);
 
-    for (const id of ["grok", "commandCode", "openCode"]) {
+    for (const id of ["grok", "commandCode", "openCode", "codex"]) {
       expect(html).toContain(`data-favorite="${id}"`);
     }
-    expect(html.match(/class="star/g) ?? []).toHaveLength(3);
+    expect(html.match(/class="star/g) ?? []).toHaveLength(4);
     expect(html).not.toContain('class="star active"');
   });
 

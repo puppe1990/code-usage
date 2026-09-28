@@ -1,7 +1,7 @@
 [package]
 name = "code-usage"
 version = "0.1.0"
-description = "Menu bar usage monitor for Command Code, Grok and OpenCode"
+description = "Menu bar usage monitor for Command Code, Grok, OpenCode and Codex"
 edition = "2021"
 rust-version = "1.77"
 

@@ -70,6 +70,7 @@ body {
   border-radius: 10px;
   padding: 10px;
   background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
 }
 
 .card-head {
@@ -79,17 +80,35 @@ body {
   margin-bottom: 8px;
 }
 
-.card-head[data-collapse] {
-  cursor: pointer;
-}
-
-.card-head[data-collapse]:hover .chevron {
-  color: #e8ecf3;
-}
-
 .card-head h2 {
   font-size: 13px;
   font-weight: 600;
+}
+
+.cost-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: calc(100% + 20px);
+  margin: 8px -10px -10px;
+  padding: 8px 10px;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cost-toggle:hover,
+.cost-toggle:focus-visible {
+  background: rgba(96, 165, 250, 0.28);
+  outline: none;
+}
+
+.card.expanded .cost-toggle {
+  margin-bottom: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .chevron {
@@ -106,6 +125,7 @@ body {
 
 .card-body {
   display: none;
+  padding-top: 6px;
 }
 
 .card.expanded .card-body {

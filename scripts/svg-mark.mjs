@@ -222,6 +222,9 @@ function arcTo(state, relative) {
 }
 
 function closeSubpath(state) {
+  // a closed subpath carries its closing segment, so a stroked outline draws the join and a fill
+  // keeps the same winding it had with the implicit wrap
+  if (state.points.length > 1) state.points.push({ x: state.startX, y: state.startY });
   if (state.points.length > 0) state.subpaths.push(state.points);
   state.points = [];
   state.x = state.startX;
@@ -287,9 +290,14 @@ export function flattenPath(d, steps = 14) {
   return state.subpaths;
 }
 
-/// Paint (fill and fill-rule) a group passes down to its children.
+/// Paint (fill, fill-rule and stroke) a group passes down to its children.
 function groupPaint(tag) {
-  return { fill: attribute(tag, "fill"), rule: attribute(tag, "fill-rule") };
+  return {
+    fill: attribute(tag, "fill"),
+    rule: attribute(tag, "fill-rule"),
+    stroke: attribute(tag, "stroke"),
+    strokeWidth: attribute(tag, "stroke-width"),
+  };
 }
 
 /// Paint of a nested group: its own attributes, or whatever the parent already had.
@@ -297,17 +305,28 @@ function mergedPaint(parent, tag) {
   return {
     fill: attribute(tag, "fill") ?? parent.fill,
     rule: attribute(tag, "fill-rule") ?? parent.rule,
+    stroke: attribute(tag, "stroke") ?? parent.stroke,
+    strokeWidth: attribute(tag, "stroke-width") ?? parent.strokeWidth,
   };
 }
 
-/// Path geometry plus fill rule, or null when the path is a tile/background fill the caller skips.
-function pathShape(tag, paint, skipped) {
+/// Path geometry plus how it is painted: a stroked outline, a fill, or both. Fills that the caller
+/// asks to skip (the tile behind a brand mark) are dropped; a stroke is always part of the mark.
+function pathShapes(tag, paint, skipped) {
   const fill = (attribute(tag, "fill") ?? paint.fill ?? "").toLowerCase();
-  if (skipped.includes(fill)) return null;
-
+  const stroke = (attribute(tag, "stroke") ?? paint.stroke ?? "").toLowerCase();
+  const strokeWidth = Number(attribute(tag, "stroke-width") ?? paint.strokeWidth ?? 0);
   const polygons = flattenPath(attribute(tag, "d") ?? "");
-  if (polygons.length === 0) return null;
-  return { polygons, rule: attribute(tag, "fill-rule") ?? paint.rule };
+  const shapes = [];
+
+  if (polygons.length === 0) return shapes;
+  if (stroke !== "" && stroke !== "none" && strokeWidth > 0) {
+    shapes.push({ polygons, strokeWidth });
+  }
+  if (fill !== "none" && !skipped.includes(fill)) {
+    shapes.push({ polygons, rule: attribute(tag, "fill-rule") ?? paint.rule });
+  }
+  return shapes;
 }
 
 /// Shapes that paint the mark: every path, except the ones explicitly filled with pure black — the
@@ -330,12 +349,35 @@ function markShapes(svg, skip = []) {
       continue;
     }
 
-    const shape = pathShape(tag, groups.at(-1), skipped);
-    if (shape) shapes.push(shape);
+    shapes.push(...pathShapes(tag, groups.at(-1), skipped));
   }
 
   if (shapes.length === 0) throw new Error("no paintable paths found in the mark");
   return shapes;
+}
+
+/// Distance from (`x`, `y`) to the segment `a`-`b`.
+function distanceToSegment(x, y, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = dx * dx + dy * dy;
+  const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length));
+
+  return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
+}
+
+/// A stroked path paints everything within half its width of the outline, with round caps and
+/// joins — the only style the marks use.
+function withinStroke(shape, x, y) {
+  const half = shape.strokeWidth / 2;
+
+  return shape.polygons.some((points) => {
+    if (points.length === 1) return Math.hypot(x - points[0].x, y - points[0].y) <= half;
+    for (let i = 0; i < points.length - 1; i++) {
+      if (distanceToSegment(x, y, points[i], points[i + 1]) <= half) return true;
+    }
+    return false;
+  });
 }
 
 /// Winding-number test (or even-odd parity when the shape asks for it).
@@ -353,6 +395,10 @@ function contains(shape, x, y) {
   return shape.rule === "evenodd" ? winding % 2 !== 0 : winding !== 0;
 }
 
+function paints(shape, x, y) {
+  return shape.strokeWidth === undefined ? contains(shape, x, y) : withinStroke(shape, x, y);
+}
+
 const SAMPLE_GRID = 3;
 const SAMPLE_STEP = 1 / SAMPLE_GRID;
 
@@ -363,7 +409,7 @@ function pixelCoverage(shapes, viewBox, width, height, x, y) {
     for (let sy = 0; sy < SAMPLE_GRID; sy++) {
       const px = ((x + (sx + 0.5) * SAMPLE_STEP) * viewBox[2]) / width + viewBox[0];
       const py = ((y + (sy + 0.5) * SAMPLE_STEP) * viewBox[3]) / height + viewBox[1];
-      if (shapes.some((shape) => contains(shape, px, py))) hits++;
+      if (shapes.some((shape) => paints(shape, px, py))) hits++;
     }
   }
   return hits / (SAMPLE_GRID * SAMPLE_GRID);
@@ -371,6 +417,7 @@ function pixelCoverage(shapes, viewBox, width, height, x, y) {
 
 /// Black mark on a transparent background, ready to be used as a macOS template image. The height
 /// drives the size; the width follows the viewBox aspect ratio. `skip` lists fills to leave out.
+/// Fills and stroked outlines are both painted.
 export function renderMark(svgPath, height, { skip = [] } = {}) {
   const svg = readFileSync(svgPath, "utf8");
   const viewBox = (attribute(svg.match(/<svg\b[^>]*>/i)?.[0] ?? "", "viewBox") ?? "")

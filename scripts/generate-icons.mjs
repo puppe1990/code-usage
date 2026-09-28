@@ -140,5 +140,7 @@ writeMark("command-code", 44);
 // mark keeps only the frame around them
 writeMark("opencode", 45, { skip: ["#CFCECD"] });
 writeMark("grok", 44);
+// the Codex mark is an outline, stroked instead of filled
+writeMark("codex", 44);
 
 console.log("icons written to", iconsDir);

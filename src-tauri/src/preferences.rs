@@ -10,16 +10,23 @@ pub enum Favorite {
     Grok,
     CommandCode,
     OpenCode,
+    Codex,
 }
 
 impl Favorite {
-    pub const ALL: [Favorite; 3] = [Favorite::Grok, Favorite::CommandCode, Favorite::OpenCode];
+    pub const ALL: [Favorite; 4] = [
+        Favorite::Grok,
+        Favorite::CommandCode,
+        Favorite::OpenCode,
+        Favorite::Codex,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
             Favorite::Grok => "Grok",
             Favorite::CommandCode => "Command Code",
             Favorite::OpenCode => "OpenCode",
+            Favorite::Codex => "Codex",
         }
     }
 }

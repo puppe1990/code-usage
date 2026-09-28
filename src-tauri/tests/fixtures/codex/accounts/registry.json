@@ -1,0 +1,69 @@
+{
+  "schema_version": 3,
+  "active_account_key": "user-fixture::acct-fixture",
+  "active_account_activated_at_ms": 1789650000000,
+  "auto_switch": {
+    "enabled": false,
+    "threshold_5h_percent": 10,
+    "threshold_weekly_percent": 5,
+    "choice": false,
+    "strategy": "expiry_first"
+  },
+  "api": {
+    "usage": true,
+    "account": true
+  },
+  "accounts": [
+    {
+      "account_key": "user-fixture::acct-fixture",
+      "chatgpt_account_id": "acct-fixture",
+      "chatgpt_user_id": "user-fixture",
+      "email": "puppeicaropuppe@gmail.com",
+      "alias": "",
+      "account_name": null,
+      "plan": "plus",
+      "auth_mode": "chatgpt",
+      "created_at": 1774667021,
+      "last_used_at": 1789650000,
+      "last_usage": {
+        "primary": {
+          "used_percent": 18,
+          "window_minutes": 300,
+          "resets_at": 1789660000
+        },
+        "secondary": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": null
+        },
+        "plan_type": "plus"
+      },
+      "last_usage_at": 1789650000
+    },
+    {
+      "account_key": "user-work::acct-work",
+      "chatgpt_account_id": "acct-work",
+      "chatgpt_user_id": "user-work",
+      "email": "trabalho@empresa.com",
+      "alias": "",
+      "account_name": null,
+      "plan": "free",
+      "auth_mode": "chatgpt",
+      "created_at": 1774667021,
+      "last_used_at": 1788600000
+    },
+    {
+      "account_key": "user-pessoal::acct-pessoal",
+      "chatgpt_account_id": "acct-pessoal",
+      "chatgpt_user_id": "user-pessoal",
+      "email": "pessoal@gmail.com",
+      "alias": "pessoal",
+      "account_name": "Pessoal",
+      "plan": "pro",
+      "auth_mode": "chatgpt",
+      "created_at": 1774667021,
+      "last_used_at": 1788000000
+    }
+  ]
+}

@@ -81,6 +81,48 @@ fn open_code_values(snapshot: &UsageSnapshot) -> Vec<String> {
     fallback_to_today_cost(windows, snapshot, Provider::OpenCode)
 }
 
+/// Codex labels every window by its own length instead of a fixed slot: the free plan reports a
+/// single monthly window, the paid ones a 5-hour and a weekly one.
+fn codex_values(snapshot: &UsageSnapshot) -> Vec<String> {
+    let windows = provider(snapshot, Provider::Codex)
+        .and_then(|usage| usage.codex.as_ref())
+        .map(|limits| {
+            [
+                ("5h", limits.primary.as_ref()),
+                ("W", limits.secondary.as_ref()),
+            ]
+            .into_iter()
+            .filter_map(|(fallback, window)| {
+                window.map(|window| {
+                    window_value(
+                        window_label(window.window_minutes, fallback),
+                        window.percent_used,
+                    )
+                })
+            })
+            .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    // no price to fall back to: a rollout never records one
+    if windows.is_empty() {
+        vec![placeholder()]
+    } else {
+        windows
+    }
+}
+
+/// `5h` for the five-hour window, `W` for the weekly one and `M` for the monthly one; a window
+/// the CLI sent without a length keeps the label of its slot.
+fn window_label(window_minutes: Option<i64>, fallback: &str) -> &str {
+    match window_minutes {
+        Some(minutes) if minutes <= 6 * 60 => "5h",
+        Some(minutes) if minutes <= 7 * 24 * 60 => "W",
+        Some(_) => "M",
+        None => fallback,
+    }
+}
+
 /// A harness without window data shows today's cost instead.
 fn fallback_to_today_cost(
     windows: Vec<String>,
@@ -99,6 +141,7 @@ fn value_for(snapshot: &UsageSnapshot, favorite: Favorite) -> Vec<String> {
         Favorite::Grok => grok_values(snapshot),
         Favorite::CommandCode => command_code_values(snapshot),
         Favorite::OpenCode => open_code_values(snapshot),
+        Favorite::Codex => codex_values(snapshot),
     }
 }
 
@@ -128,8 +171,8 @@ mod tests {
     use super::*;
     use crate::preferences::Preferences;
     use crate::usage::{
-        CommandCodeLimits, GrokLimits, OpenCodeGoLimits, OpenCodeGoWindow, ProviderUsage,
-        UsageWindow, WindowLimit,
+        CodexLimits, CodexWindow, CommandCodeLimits, GrokLimits, OpenCodeGoLimits,
+        OpenCodeGoWindow, ProviderUsage, UsageWindow, WindowLimit,
     };
     use chrono::{TimeZone, Utc};
 
@@ -195,6 +238,28 @@ mod tests {
         }
     }
 
+    fn codex_limits(primary: Option<(f64, i64)>, secondary: Option<(f64, i64)>) -> CodexLimits {
+        let now = Utc.with_ymd_and_hms(2026, 9, 17, 15, 0, 0).unwrap();
+        let window = |(percent_used, window_minutes): (f64, i64)| CodexWindow {
+            percent_used,
+            window_minutes: Some(window_minutes),
+            resets_at: Some(now),
+        };
+
+        CodexLimits {
+            primary: primary.map(window),
+            secondary: secondary.map(window),
+            plan: Some("plus".to_string()),
+            fetched_at: now,
+        }
+    }
+
+    fn codex_provider(limits: Option<CodexLimits>) -> ProviderUsage {
+        let mut provider = provider(Provider::Codex, ProviderStatus::Ok, 0.0, None);
+        provider.codex = limits;
+        provider
+    }
+
     fn provider(
         provider: Provider,
         status: ProviderStatus,
@@ -215,6 +280,7 @@ mod tests {
             grok,
             command_code: None,
             open_code_go: None,
+            codex: None,
         }
     }
 
@@ -338,6 +404,51 @@ mod tests {
             "$1.09"
         );
         assert_eq!(format_title(&snapshot, Some(Favorite::OpenCode)), "$3.43");
+    }
+
+    #[test]
+    fn renders_the_codex_windows_labelled_by_their_own_length() {
+        let snapshot = snapshot(vec![codex_provider(Some(codex_limits(
+            Some((18.0, 300)),
+            Some((4.6, 10080)),
+        )))]);
+
+        assert_eq!(
+            format_title(&snapshot, Some(Favorite::Codex)),
+            "5h 18% · W 5%"
+        );
+    }
+
+    #[test]
+    fn renders_the_single_monthly_window_of_the_free_plan() {
+        let snapshot = snapshot(vec![codex_provider(Some(codex_limits(
+            Some((100.0, 43200)),
+            None,
+        )))]);
+
+        assert_eq!(format_title(&snapshot, Some(Favorite::Codex)), "M 100%");
+    }
+
+    #[test]
+    fn a_codex_window_without_a_length_keeps_the_label_of_its_slot() {
+        let mut limits = codex_limits(Some((12.4, 300)), Some((4.6, 10080)));
+        limits.primary.as_mut().expect("primary").window_minutes = None;
+        limits.secondary = None;
+
+        let snapshot = snapshot(vec![codex_provider(Some(limits))]);
+
+        assert_eq!(format_title(&snapshot, Some(Favorite::Codex)), "5h 12%");
+    }
+
+    #[test]
+    fn codex_without_limits_renders_a_placeholder() {
+        let snapshot = snapshot(vec![codex_provider(None)]);
+
+        assert_eq!(
+            format_title(&snapshot, Some(Favorite::Codex)),
+            "–",
+            "a rollout records no price to fall back to"
+        );
     }
 
     #[test]

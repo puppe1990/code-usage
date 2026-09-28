@@ -1,3 +1,4 @@
+import codexMark from "../src-tauri/icons/codex.svg?raw";
 import commandCodeMark from "../src-tauri/icons/command-code.svg?raw";
 import grokMark from "../src-tauri/icons/grok.svg?raw";
 import openCodeMark from "../src-tauri/icons/opencode.svg?raw";
@@ -11,6 +12,8 @@ import {
 import type {
   AccountEntry,
   AccountMenuState,
+  CodexLimits,
+  CodexWindow,
   CommandCodeLimits,
   FavoriteId,
   OpenCodeGoLimits,
@@ -25,12 +28,14 @@ const PROVIDER_LABEL: Record<ProviderUsage["provider"], string> = {
   commandCode: "Command Code",
   grok: "Grok",
   openCode: "OpenCode",
+  codex: "Codex",
 };
 
 const PROVIDER_MARK: Record<ProviderUsage["provider"], string> = {
   commandCode: commandCodeMark.trim(),
   grok: grokMark.trim(),
   openCode: openCodeMark.trim(),
+  codex: codexMark.trim(),
 };
 
 function escapeHtml(text: string): string {
@@ -49,6 +54,7 @@ function providerHeading(provider: ProviderUsage["provider"]): string {
 function accountDetail(usage: ProviderUsage): string | null {
   if (usage.provider === "commandCode") return usage.commandCode?.plan ?? null;
   if (usage.provider === "grok") return usage.grok?.tier ?? null;
+  if (usage.provider === "codex") return usage.codex?.plan ?? null;
   return null;
 }
 
@@ -74,6 +80,7 @@ const ACCOUNT_HINT: Record<ProviderId, string> = {
   commandCode: "nenhuma conta salva — use ccs save <nome>",
   grok: "nenhum perfil salvo em ~/.grok/accounts",
   openCode: "nenhuma conta Go salva — use ocgs save <nome>",
+  codex: "nenhuma conta salva — use codex-auth login",
 };
 
 function accountItem(provider: ProviderId, account: AccountEntry, disabled: boolean): string {
@@ -235,6 +242,38 @@ function openCodeGoSection(limits: OpenCodeGoLimits): string {
     </div>`;
 }
 
+/** Codex labels every window by its own length: the free plan reports a single monthly one. */
+function codexWindowLabel(minutes: number | null | undefined, fallback: string): string {
+  if (minutes === null || minutes === undefined) return fallback;
+  if (minutes <= 6 * 60) return "5h";
+  if (minutes <= 7 * 24 * 60) return "W";
+  return "M";
+}
+
+function codexWindow(window: CodexWindow | null | undefined, fallback: string): string {
+  if (!window) return "";
+
+  const reset = window.resetsAt ? formatResetCountdown(window.resetsAt) : "sem reset informado";
+  return windowRowDetail(
+    codexWindowLabel(window.windowMinutes, fallback),
+    window.percentUsed,
+    reset,
+  );
+}
+
+function codexSection(limits: CodexLimits): string {
+  const windows = [codexWindow(limits.primary, "5h"), codexWindow(limits.secondary, "W")].join("");
+  if (!windows.trim()) return "";
+
+  return `
+    <div class="limit">
+      <div class="limit-meta top">
+        ${limits.plan ? `<span class="badge">${escapeHtml(limits.plan)}</span>` : ""}
+      </div>
+      ${windows}
+    </div>`;
+}
+
 function statusNotice(usage: ProviderUsage): string {
   if (usage.status.state === "notFound") {
     return `<div class="notice">não encontrado em ${usage.status.path}</div>`;
@@ -245,28 +284,34 @@ function statusNotice(usage: ProviderUsage): string {
   return "";
 }
 
+function costToggle(provider: ProviderId, isExpanded: boolean): string {
+  return `<div class="cost-toggle" data-collapse="${provider}" role="button" tabindex="0" aria-expanded="${isExpanded}"><span>Custo</span><span class="chevron" aria-hidden="true">▸</span></div>`;
+}
+
 function card(
   usage: ProviderUsage,
   favorite: FavoriteId | null,
   expanded: ReadonlySet<ProviderId>,
   menu: AccountMenuState | null,
 ): string {
-  const showCost = usage.provider !== "grok";
+  const showCost = usage.provider !== "grok" && usage.provider !== "codex";
   const isExpanded = expanded.has(usage.provider);
   const updated = usage.lastRecordAt
     ? `atualizado ${formatRelativeTime(usage.lastRecordAt)}`
     : "sem dados";
   return `
     <section class="card${isExpanded ? " expanded" : ""}" data-provider="${usage.provider}">
-      <header class="card-head" data-collapse="${usage.provider}" role="button" tabindex="0" aria-expanded="${isExpanded}">
+      <header class="card-head">
         <h2>${providerHeading(usage.provider)}${accountSwitch(usage, menu?.provider === usage.provider)}</h2>
-        <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}<span class="chevron" aria-hidden="true">▸</span></span>
+        <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}</span>
       </header>
       ${accountMenu(usage, menu)}
       ${statusNotice(usage)}
       ${usage.commandCode ? commandCodeSection(usage.commandCode) : ""}
       ${usage.openCodeGo ? openCodeGoSection(usage.openCodeGo) : ""}
+      ${usage.codex ? codexSection(usage.codex) : ""}
       ${grokSection(usage)}
+      ${costToggle(usage.provider, isExpanded)}
       <div class="card-body">
         ${rows(usage.today, showCost, "hoje")}
         ${rows(usage.last7d, showCost, "7 dias")}
