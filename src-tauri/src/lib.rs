@@ -2,6 +2,7 @@
 //! behavior that hides the panel.
 
 mod accounts;
+mod appearance;
 mod base64url;
 mod commands;
 mod preferences;
@@ -65,6 +66,12 @@ pub fn run() {
             commands::get_usage,
             commands::get_favorite,
             commands::set_favorite,
+            commands::get_hidden,
+            commands::set_hidden,
+            commands::get_theme,
+            commands::set_theme,
+            commands::get_order,
+            commands::set_order,
             commands::get_autostart,
             commands::set_autostart,
             commands::refresh_now,
@@ -79,6 +86,11 @@ pub fn run() {
 
             tray::init(app.handle())?;
             refresh::spawn(app.handle().clone());
+            let theme = app
+                .try_state::<AppState>()
+                .and_then(|state| state.preferences.lock().ok().map(|prefs| prefs.theme))
+                .unwrap_or_default();
+            appearance::apply_to_app(app.handle(), theme);
             Ok(())
         })
         .on_window_event(|window, event| {
