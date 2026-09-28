@@ -17,6 +17,8 @@ import type {
   CommandCodeLimits,
   FavoriteId,
   OpenCodeGoLimits,
+  Appearance,
+  PanelTab,
   ProviderId,
   ProviderUsage,
   TokenTotals,
@@ -38,6 +40,47 @@ const PROVIDER_MARK: Record<ProviderUsage["provider"], string> = {
   codex: codexMark.trim(),
 };
 
+export const DEFAULT_ORDER: ProviderId[] = ["commandCode", "grok", "openCode", "codex"];
+
+const TAB_LABEL: Record<PanelTab, string> = {
+  overview: "Overview",
+  commandCode: "Code",
+  grok: "Grok",
+  openCode: "Open",
+  codex: "Codex",
+};
+
+export function harnessOrder(order: readonly ProviderId[] = []): ProviderId[] {
+  const seen = new Set<ProviderId>();
+  const result: ProviderId[] = [];
+  for (const id of order) {
+    if (DEFAULT_ORDER.includes(id) && !seen.has(id)) {
+      seen.add(id);
+      result.push(id);
+    }
+  }
+  for (const id of DEFAULT_ORDER) {
+    if (!seen.has(id)) result.push(id);
+  }
+  return result;
+}
+
+export function moveHarnessTo(
+  order: readonly ProviderId[],
+  from: ProviderId,
+  to: ProviderId,
+): ProviderId[] {
+  const ranked = harnessOrder(order);
+  const fromIndex = ranked.indexOf(from);
+  const toIndex = ranked.indexOf(to);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return ranked;
+  ranked.splice(fromIndex, 1);
+  ranked.splice(toIndex, 0, from);
+  return ranked;
+}
+
+const OVERVIEW_MARK = `<svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="6" height="6" rx="1.2" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.2" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.2" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.2" fill="currentColor"/></svg>`;
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -48,6 +91,70 @@ function escapeHtml(text: string): string {
 
 function providerHeading(provider: ProviderUsage["provider"]): string {
   return `${PROVIDER_MARK[provider]}${PROVIDER_LABEL[provider]}`;
+}
+
+function tabMark(id: PanelTab): string {
+  if (id === "overview") return OVERVIEW_MARK;
+  return PROVIDER_MARK[id].replace("provider-logo", "provider-logo tab-icon");
+}
+
+function tabsHtml(
+  selected: PanelTab,
+  hidden: ReadonlySet<ProviderId>,
+  order: readonly ProviderId[],
+): string {
+  const items: PanelTab[] = ["overview", ...harnessOrder(order).filter((id) => !hidden.has(id))];
+  return `<nav class="tabs">${items
+    .map((id) => {
+      const active = id === selected ? " active" : "";
+      return `<button type="button" class="tab${active}" data-tab="${id}">${tabMark(id)}<span>${TAB_LABEL[id]}</span></button>`;
+    })
+    .join("")}</nav>`;
+}
+
+const APPEARANCE_ITEMS: { id: Appearance; label: string }[] = [
+  { id: "dark", label: "Dark" },
+  { id: "light", label: "Light" },
+  { id: "translucent", label: "Translúcido" },
+];
+
+function overviewMenu(
+  autostart: boolean,
+  settingsOpen: boolean,
+  hidden: ReadonlySet<ProviderId>,
+  appearance: Appearance,
+  order: readonly ProviderId[],
+): string {
+  const ranked = harnessOrder(order);
+  const settings = settingsOpen
+    ? `<div class="settings">
+        <label class="toggle"><input type="checkbox" id="autostart"${autostart ? " checked" : ""}><span>abrir ao iniciar o Mac</span></label>
+        <p class="settings-label">Aparência</p>
+        <div class="theme-picks">
+          ${APPEARANCE_ITEMS.map(
+            (item) =>
+              `<button type="button" class="theme-pick${item.id === appearance ? " active" : ""}" data-appearance="${item.id}">${item.label}</button>`,
+          ).join("")}
+        </div>
+        <p class="settings-label">Ordem</p>
+        ${ranked
+          .map((id, index) => {
+            const checked = hidden.has(id) ? "" : " checked";
+            const upOff = index === 0 ? " disabled" : "";
+            const downOff = index === ranked.length - 1 ? " disabled" : "";
+            return `<div class="order-row"><label class="toggle"><input type="checkbox" data-visible="${id}"${checked}><span>${PROVIDER_LABEL[id]}</span></label><span class="order-moves"><button type="button" class="order-move" data-move="up" data-provider="${id}"${upOff} aria-label="Subir">↑</button><button type="button" class="order-move" data-move="down" data-provider="${id}"${downOff} aria-label="Descer">↓</button></span></div>`;
+          })
+          .join("")}
+      </div>`
+    : "";
+
+  return `
+    <div class="menu">
+      <button type="button" class="menu-row" id="refresh">Atualizar</button>
+      <div class="menu-row${settingsOpen ? " open" : ""}" data-settings role="button" tabindex="0" aria-expanded="${settingsOpen}"><span>Ajustes</span><span class="chevron" aria-hidden="true">▸</span></div>
+      ${settings}
+      <button type="button" class="menu-row" id="quit" title="Encerrar o Code Usage">Sair</button>
+    </div>`;
 }
 
 /** Plan or tier that goes with the account in the switch tooltip. */
@@ -151,29 +258,23 @@ function rows(window: UsageWindow, showCost: boolean, label: string): string {
 function grokSection(usage: ProviderUsage): string {
   const limits = usage.grok;
   if (!limits) return "";
-  const tier = limits.tier ? ` · ${limits.tier}` : "";
   if (limits.creditUsagePercent === null || limits.creditUsagePercent === undefined) {
     return `
     <div class="limit">
-      <div class="limit-meta">
-        <span>Uso semanal não informado pela conta${tier}</span>
+      <div class="limit-heading">
+        <span>Uso semanal não informado pela conta</span>
         <span>${formatResetCountdown(limits.periodEnd)}</span>
       </div>
     </div>`;
   }
   return `
     <div class="limit">
-      ${limitBar(limits.creditUsagePercent)}
-      <div class="limit-meta">
-        <span>${formatPercent(limits.creditUsagePercent)} do período semanal${tier}</span>
+      <div class="limit-heading">
+        <span>${formatPercent(limits.creditUsagePercent)} do período semanal</span>
         <span>${formatResetCountdown(limits.periodEnd)}</span>
       </div>
+      ${limitBar(limits.creditUsagePercent)}
     </div>`;
-}
-
-function commandCodeBadge(limits: CommandCodeLimits): string {
-  if (!limits.plan) return "";
-  return `<span class="badge">${limits.plan}${limits.status ? ` · ${limits.status}` : ""}</span>`;
 }
 
 function commandCodeRenewal(limits: CommandCodeLimits): string {
@@ -184,18 +285,18 @@ function commandCodeRenewal(limits: CommandCodeLimits): string {
 function commandCodePrincipal(limits: CommandCodeLimits): string {
   if (limits.weekly) {
     return `
-      ${limitBar(limits.weekly.percentUsed)}
-      <div class="limit-meta">
+      <div class="limit-heading">
         <span>${formatPercent(limits.weekly.percentUsed)} do período semanal</span>
         <span>${formatResetCountdown(limits.weekly.resetAt)}</span>
-      </div>`;
+      </div>
+      ${limitBar(limits.weekly.percentUsed)}`;
   }
   return `
-      ${limitBar(limits.usagePercent)}
-      <div class="limit-meta">
+      <div class="limit-heading">
         <span>${formatPercent(limits.usagePercent)} usado</span>
         <span>${commandCodeRenewal(limits)}</span>
-      </div>`;
+      </div>
+      ${limitBar(limits.usagePercent)}`;
 }
 
 function commandCodeWindows(limits: CommandCodeLimits): string {
@@ -208,9 +309,6 @@ function commandCodeWindows(limits: CommandCodeLimits): string {
 function commandCodeSection(limits: CommandCodeLimits): string {
   return `
     <div class="limit">
-      <div class="limit-meta top">
-        ${commandCodeBadge(limits)}
-      </div>
       ${commandCodePrincipal(limits)}
       ${commandCodeWindows(limits)}
     </div>`;
@@ -219,11 +317,11 @@ function commandCodeSection(limits: CommandCodeLimits): string {
 function openCodeGoSection(limits: OpenCodeGoLimits): string {
   const weekly = limits.weekly
     ? `
-      ${limitBar(limits.weekly.percent)}
-      <div class="limit-meta">
+      <div class="limit-heading">
         <span>${formatPercent(limits.weekly.percent)} do período semanal</span>
         <span>${formatResetCountdown(limits.weekly.resetsAt)}</span>
-      </div>`
+      </div>
+      ${limitBar(limits.weekly.percent)}`
     : "";
 
   const secondary = [
@@ -235,9 +333,6 @@ function openCodeGoSection(limits: OpenCodeGoLimits): string {
 
   return `
     <div class="limit">
-      <div class="limit-meta top">
-        <span class="badge">OpenCode Go</span>
-      </div>
       ${weekly}${secondary}
     </div>`;
 }
@@ -267,9 +362,6 @@ function codexSection(limits: CodexLimits): string {
 
   return `
     <div class="limit">
-      <div class="limit-meta top">
-        ${limits.plan ? `<span class="badge">${escapeHtml(limits.plan)}</span>` : ""}
-      </div>
       ${windows}
     </div>`;
 }
@@ -284,6 +376,17 @@ function statusNotice(usage: ProviderUsage): string {
   return "";
 }
 
+function planLabel(usage: ProviderUsage): string | null {
+  if (usage.commandCode?.plan) {
+    const status = usage.commandCode.status ? ` · ${usage.commandCode.status}` : "";
+    return `${usage.commandCode.plan}${status}`;
+  }
+  if (usage.grok?.tier) return usage.grok.tier;
+  if (usage.openCodeGo) return "OpenCode Go";
+  if (usage.codex?.plan) return usage.codex.plan;
+  return null;
+}
+
 function costToggle(provider: ProviderId, isExpanded: boolean): string {
   return `<div class="cost-toggle" data-collapse="${provider}" role="button" tabindex="0" aria-expanded="${isExpanded}"><span>Custo</span><span class="chevron" aria-hidden="true">▸</span></div>`;
 }
@@ -293,17 +396,29 @@ function card(
   favorite: FavoriteId | null,
   expanded: ReadonlySet<ProviderId>,
   menu: AccountMenuState | null,
+  draggable: boolean,
 ): string {
   const showCost = usage.provider !== "grok" && usage.provider !== "codex";
   const isExpanded = expanded.has(usage.provider);
   const updated = usage.lastRecordAt
     ? `atualizado ${formatRelativeTime(usage.lastRecordAt)}`
     : "sem dados";
+  const plan = planLabel(usage);
+  const planHtml = plan ? `<span class="card-plan">${escapeHtml(plan)}</span>` : "";
+  const accountHtml = accountSwitch(usage, menu?.provider === usage.provider);
   return `
     <section class="card${isExpanded ? " expanded" : ""}" data-provider="${usage.provider}">
       <header class="card-head">
-        <h2>${providerHeading(usage.provider)}${accountSwitch(usage, menu?.provider === usage.provider)}</h2>
-        <span class="card-updated">${updated}${star(usage.provider, favorite === usage.provider)}</span>
+        <div class="card-title-row">
+          ${draggable ? `<button type="button" class="drag-handle" data-drag="${usage.provider}" aria-label="Reordenar">⋮⋮</button>` : ""}
+          <h2>${providerHeading(usage.provider)}</h2>
+          ${star(usage.provider, favorite === usage.provider)}
+        </div>
+        <div class="card-sub">
+          <span class="card-updated">${updated}</span>
+          ${planHtml}
+        </div>
+        ${accountHtml}
       </header>
       ${accountMenu(usage, menu)}
       ${statusNotice(usage)}
@@ -320,34 +435,42 @@ function card(
     </section>`;
 }
 
-/** Renders the whole panel: one collapsible card per harness. */
+/** Renders the whole panel: Overview of every harness, or one harness tab. */
 export function panelHtml(
   snapshot: UsageSnapshot,
   favorite: FavoriteId | null = null,
   expanded: ReadonlySet<ProviderId> = new Set(),
   autostart = false,
   menu: AccountMenuState | null = null,
+  tab: PanelTab = "overview",
+  settingsOpen = false,
+  hidden: ReadonlySet<ProviderId> = new Set(),
+  appearance: Appearance = "dark",
+  order: readonly ProviderId[] = [],
 ): string {
+  const ranked = harnessOrder(order);
+  const rank = new Map(ranked.map((id, index) => [id, index]));
+  const shown = snapshot.providers
+    .filter((usage) => !hidden.has(usage.provider))
+    .sort((left, right) => (rank.get(left.provider) ?? 99) - (rank.get(right.provider) ?? 99));
+  const visible = tab === "overview" ? shown : shown.filter((usage) => usage.provider === tab);
+
   return `
-    <div class="panel">
+    <div class="panel" data-theme="${appearance}">
       <header class="panel-head">
-        <span class="panel-title">Code Usage</span>
-        <span class="panel-actions">
-          <button id="refresh" title="Atualizar agora">⟳</button>
-          <button id="close" title="Fechar">✕</button>
-        </span>
+        ${tabsHtml(tab, hidden, ranked)}
       </header>
-      <main class="cards">
-        ${snapshot.providers.map((usage) => card(usage, favorite, expanded, menu)).join("")}
+      <main class="cards${tab === "overview" ? "" : " single"}">
+        ${visible.map((usage) => card(usage, favorite, expanded, menu, tab === "overview")).join("")}
       </main>
-      <label class="toggle">
-        <input type="checkbox" id="autostart"${autostart ? " checked" : ""}>
-        <span>abrir ao iniciar o Mac</span>
-      </label>
-      <footer class="panel-foot">
+      ${
+        tab === "overview"
+          ? overviewMenu(autostart, settingsOpen, hidden, appearance, ranked)
+          : `<footer class="panel-foot">
         <span>gerado ${formatRelativeTime(snapshot.generatedAt)} · ★ escolhe o harness do menu bar</span>
         <button id="quit" title="Encerrar o Code Usage">sair</button>
-      </footer>
+      </footer>`
+      }
     </div>`;
 }
 
@@ -359,6 +482,22 @@ export function renderPanel(
   expanded: ReadonlySet<ProviderId> = new Set(),
   autostart = false,
   menu: AccountMenuState | null = null,
+  tab: PanelTab = "overview",
+  settingsOpen = false,
+  hidden: ReadonlySet<ProviderId> = new Set(),
+  appearance: Appearance = "dark",
+  order: readonly ProviderId[] = [],
 ): void {
-  root.innerHTML = panelHtml(snapshot, favorite, expanded, autostart, menu);
+  root.innerHTML = panelHtml(
+    snapshot,
+    favorite,
+    expanded,
+    autostart,
+    menu,
+    tab,
+    settingsOpen,
+    hidden,
+    appearance,
+    order,
+  );
 }

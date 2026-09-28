@@ -1,5 +1,9 @@
 export type ProviderId = "commandCode" | "grok" | "openCode" | "codex";
 
+export type PanelTab = "overview" | ProviderId;
+
+export type Appearance = "dark" | "light" | "translucent";
+
 export interface TokenTotals {
   input: number;
   output: number;

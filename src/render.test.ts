@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { panelHtml } from "./render";
+import { moveHarnessTo, panelHtml } from "./render";
 import type { UsageSnapshot } from "./types";
 
 const resetAt = new Date(Date.now() + 6 * 86_400_000 + 16 * 3_600_000).toISOString();
@@ -145,18 +145,18 @@ describe("panelHtml", () => {
 
   it("shows the Command Code renewal on the monthly row, not the header", () => {
     const html = panelHtml(snapshot);
-    const block = html.slice(html.indexOf("Command Code"), html.indexOf("Grok"));
-    const top = block.slice(block.indexOf('class="limit-meta top"'), block.indexOf("limit-bar"));
+    const block = html.split('data-provider="commandCode"')[1].split("<section")[0];
+    const head = block.slice(0, block.indexOf('class="limit"'));
     const monthly = block.slice(block.indexOf('<span class="window-label">mensal</span>'));
 
-    expect(top).not.toContain("renova em");
+    expect(head).not.toContain("renova em");
     expect(monthly).toContain("renova em 23 dias");
     expect(monthly).not.toContain("requests");
   });
 
   it("renders the weekly window as the largest bar of the Command Code card", () => {
     const html = panelHtml(snapshot);
-    const block = html.slice(html.indexOf("Command Code"), html.indexOf("Grok"));
+    const block = html.split('data-provider="commandCode"')[1].split("<section")[0];
 
     expect(block).toContain('class="limit-bar"><div class="limit-fill" style="width:1.9%');
     expect(block).toContain('<span class="window-label">5h</span>');
@@ -194,13 +194,13 @@ describe("panelHtml", () => {
 
     expect(html).toContain("$0.64");
     expect(html).toContain("$2.95");
-    expect(html).toContain("77% do período semanal · SuperGrok");
+    expect(html).toContain("77% do período semanal");
   });
 
   it("renders the Codex windows labelled by their own length", () => {
     const codex = panelHtml(snapshot).split('<section class="card"').slice(1)[3];
 
-    expect(codex).toContain('<span class="badge">plus</span>');
+    expect(codex).toContain('<span class="card-plan">plus</span>');
     expect(codex).toContain('<span class="window-label">5h</span>');
     expect(codex).toContain('class="limit-bar small"><div class="limit-fill" style="width:18.0%');
     expect(codex).toContain('<span class="window-meta">18% · reseta em');
@@ -219,7 +219,7 @@ describe("panelHtml", () => {
 
     const codex = panelHtml(free).split('<section class="card"').slice(1)[3];
 
-    expect(codex).toContain('<span class="badge">free</span>');
+    expect(codex).toContain('<span class="card-plan">free</span>');
     expect(codex).toContain('<span class="window-label">M</span>');
     expect(codex).toContain('<span class="window-meta">100% · reseta em');
     expect(codex).not.toContain('<span class="window-label">5h</span>');
@@ -252,7 +252,8 @@ describe("panelHtml", () => {
 
     const html = panelHtml(switched);
 
-    expect(html).toContain("Uso semanal não informado pela conta · SuperGrok Plus");
+    expect(html).toContain("Uso semanal não informado pela conta");
+    expect(html).toContain('<span class="card-plan">SuperGrok Plus</span>');
     expect(html).not.toContain("77% do período semanal");
   });
 
@@ -409,13 +410,13 @@ describe("panelHtml", () => {
     const collapsed = panelHtml(snapshot);
 
     expect(collapsed.match(/class="card expanded"/g) ?? []).toHaveLength(0);
-    expect(collapsed.match(/aria-expanded="false"/g) ?? []).toHaveLength(4);
+    expect(collapsed.match(/class="cost-toggle"[^>]*aria-expanded="false"/g) ?? []).toHaveLength(4);
 
     const expanded = panelHtml(snapshot, null, new Set(["openCode"]));
 
     expect(expanded).toContain('class="card expanded" data-provider="openCode"');
     expect(expanded.match(/class="card expanded"/g) ?? []).toHaveLength(1);
-    expect(expanded.match(/aria-expanded="true"/g) ?? []).toHaveLength(1);
+    expect(expanded.match(/class="cost-toggle"[^>]*aria-expanded="true"/g) ?? []).toHaveLength(1);
   });
 
   it("keeps the totals inside the collapsible body of each card", () => {
@@ -460,10 +461,189 @@ describe("panelHtml", () => {
     expect(html.match(/class="cost-toggle"/g) ?? []).toHaveLength(4);
   });
 
-  it("renders the launch at login toggle", () => {
-    expect(panelHtml(snapshot)).toContain('id="autostart"');
-    expect(panelHtml(snapshot)).not.toContain("checked");
-    expect(panelHtml(snapshot, null, new Set(), true)).toMatch(/id="autostart" checked/);
+  it("renders Overview and one tab per harness", () => {
+    const html = panelHtml(snapshot);
+
+    expect(html).toContain('data-tab="overview"');
+    expect(html).toContain('data-tab="commandCode"');
+    expect(html).toContain('data-tab="grok"');
+    expect(html).toContain('data-tab="openCode"');
+    expect(html).toContain('data-tab="codex"');
+    expect(html).toContain('class="tab active" data-tab="overview"');
+    expect(html).not.toContain('class="panel-title"');
+    expect(html.split('<section class="card"').slice(1)).toHaveLength(4);
+  });
+
+  it("shows only the selected harness on its tab", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, null, "grok");
+    const cards = html.split('<section class="card"').slice(1);
+
+    expect(html).toContain('class="tab active" data-tab="grok"');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toContain('data-provider="grok"');
+    expect(html).not.toContain('data-provider="commandCode"');
+  });
+
+  it("puts the plan on the same row as the updated time, like CodexBar", () => {
+    const html = panelHtml(snapshot);
+    const cards = html.split('<section class="card"').slice(1);
+    const [command, grok, openCode, codex] = cards.map((markup) =>
+      markup.slice(
+        0,
+        markup.indexOf('class="limit"') === -1 ? markup.length : markup.indexOf('class="limit"'),
+      ),
+    );
+
+    for (const head of [command, grok, openCode, codex]) {
+      const title = head.slice(head.indexOf("card-title-row"), head.indexOf("card-sub"));
+      const sub = head.slice(head.indexOf("card-sub"));
+
+      expect(title).not.toContain("card-plan");
+      expect(sub).toContain("card-updated");
+      expect(sub).toContain("card-plan");
+    }
+
+    expect(command).toContain('<span class="card-plan">GOAT · active</span>');
+    expect(grok).toContain('<span class="card-plan">SuperGrok</span>');
+    expect(openCode).toContain('<span class="card-plan">OpenCode Go</span>');
+    expect(codex).toContain('<span class="card-plan">plus</span>');
+  });
+
+  it("puts the weekly heading above the bar and keeps SuperGrok out of that line", () => {
+    const grok = panelHtml(snapshot).split('<section class="card"').slice(1)[1];
+    const heading = grok.indexOf("77% do período semanal");
+    const bar = grok.indexOf('class="limit-bar">');
+
+    expect(heading).toBeGreaterThan(-1);
+    expect(bar).toBeGreaterThan(heading);
+    expect(grok.slice(heading, grok.indexOf("cost-toggle"))).not.toContain("SuperGrok");
+  });
+
+  it("puts Refresh and Settings at the bottom of Overview", () => {
+    const html = panelHtml(snapshot);
+    const cardsAt = html.lastIndexOf("card-body");
+    const refreshAt = html.indexOf('id="refresh"');
+    const settingsAt = html.indexOf("data-settings");
+
+    expect(html).toContain("Atualizar");
+    expect(html).toContain("Ajustes");
+    expect(refreshAt).toBeGreaterThan(cardsAt);
+    expect(settingsAt).toBeGreaterThan(refreshAt);
+    expect(html).not.toContain('id="autostart"');
+  });
+
+  it("keeps autostart and harness visibility inside Settings", () => {
+    const html = panelHtml(snapshot, null, new Set(), true, null, "overview", true);
+
+    expect(html).toMatch(/id="autostart" checked/);
+    expect(html).toContain("abrir ao iniciar o Mac");
+    expect(html).toContain('data-visible="commandCode"');
+    expect(html).toContain('data-visible="grok"');
+    expect(html).toContain('data-visible="openCode"');
+    expect(html).toContain('data-visible="codex"');
+  });
+
+  it("offers Dark, Light and Translúcido in Settings", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, null, "overview", true);
+
+    expect(html).toContain('class="panel" data-theme="dark"');
+    expect(html).toContain('data-appearance="dark"');
+    expect(html).toContain('data-appearance="light"');
+    expect(html).toContain('data-appearance="translucent"');
+    expect(html).toContain(">Dark<");
+    expect(html).toContain(">Light<");
+    expect(html).toContain("Translúcido");
+    expect(html).toContain('class="theme-pick active" data-appearance="dark"');
+  });
+
+  it("marks the selected appearance on the panel", () => {
+    const html = panelHtml(
+      snapshot,
+      null,
+      new Set(),
+      false,
+      null,
+      "overview",
+      true,
+      new Set(),
+      "light",
+    );
+
+    expect(html).toContain('class="panel" data-theme="light"');
+    expect(html).toContain('class="theme-pick active" data-appearance="light"');
+    expect(html).not.toContain('class="theme-pick active" data-appearance="dark"');
+  });
+
+  it("lists move controls for each harness in Settings", () => {
+    const html = panelHtml(snapshot, null, new Set(), false, null, "overview", true);
+
+    expect(html).toContain("Ordem");
+    for (const id of ["commandCode", "grok", "openCode", "codex"]) {
+      expect(html).toContain(`data-move="up" data-provider="${id}"`);
+      expect(html).toContain(`data-move="down" data-provider="${id}"`);
+    }
+  });
+
+  it("puts a drag handle on Overview cards and leaves the single-harness card still", () => {
+    const overview = panelHtml(snapshot);
+    const grokTab = panelHtml(snapshot, null, new Set(), false, null, "grok");
+
+    expect(overview).toContain('data-drag="commandCode"');
+    expect(overview).toContain('data-drag="grok"');
+    expect(grokTab).not.toContain("data-drag=");
+  });
+
+  it("moves a harness to another slot in the order", () => {
+    expect(
+      moveHarnessTo(["commandCode", "grok", "openCode", "codex"], "commandCode", "openCode"),
+    ).toEqual(["grok", "openCode", "commandCode", "codex"]);
+    expect(moveHarnessTo(["commandCode", "grok", "openCode", "codex"], "codex", "grok")).toEqual([
+      "commandCode",
+      "codex",
+      "grok",
+      "openCode",
+    ]);
+  });
+
+  it("reorders tabs and Overview cards from the settings order", () => {
+    const html = panelHtml(
+      snapshot,
+      null,
+      new Set(),
+      false,
+      null,
+      "overview",
+      false,
+      new Set(),
+      "dark",
+      ["grok", "codex", "commandCode", "openCode"],
+    );
+    const tabs = [...html.matchAll(/data-tab="([^"]+)"/g)].map((match) => match[1]);
+    const cards = [...html.matchAll(/class="card[^"]*" data-provider="([^"]+)"/g)].map(
+      (match) => match[1],
+    );
+
+    expect(tabs).toEqual(["overview", "grok", "codex", "commandCode", "openCode"]);
+    expect(cards).toEqual(["grok", "codex", "commandCode", "openCode"]);
+  });
+
+  it("hides a harness from Overview and from the tabs", () => {
+    const html = panelHtml(
+      snapshot,
+      null,
+      new Set(),
+      false,
+      null,
+      "overview",
+      false,
+      new Set(["grok"]),
+    );
+
+    expect(html).not.toContain('data-tab="grok"');
+    expect(html).not.toContain('data-provider="grok"');
+    expect(html).toContain('data-tab="commandCode"');
+    expect(html).toContain('data-provider="commandCode"');
+    expect(html.split('<section class="card"').slice(1)).toHaveLength(3);
   });
 
   it("renders one star per harness in the card header", () => {

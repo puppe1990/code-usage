@@ -99,6 +99,13 @@ fn toggle_window_at(app: &AppHandle, rect: Rect) {
     }
     if let Some(state) = app.try_state::<crate::AppState>() {
         state.mark_shown();
+        let theme = state
+            .preferences
+            .lock()
+            .ok()
+            .map(|prefs| prefs.theme)
+            .unwrap_or_default();
+        crate::appearance::apply(&window, theme);
     }
     position_window(&window, rect);
     let _ = window.show();

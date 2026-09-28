@@ -25,6 +25,7 @@ reqwest = { version = "0.13.3", default-features = false, features = ["blocking"
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["std", "NSScreen", "NSEvent"] }
+window-vibrancy = "0.6"
 
 [dev-dependencies]
 tempfile = "3"

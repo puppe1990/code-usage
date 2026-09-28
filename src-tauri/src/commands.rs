@@ -1,7 +1,7 @@
 //! IPC surface called by the panel (`invoke` in src/main.ts).
 
 use crate::accounts::{self, Account};
-use crate::preferences::{Favorite, Preferences};
+use crate::preferences::{complete_order, Favorite, Preferences, Theme};
 use crate::refresh;
 use crate::tray;
 use crate::usage::{self, Provider, UsageSnapshot};
@@ -42,15 +42,18 @@ pub fn get_favorite(state: State<'_, AppState>) -> Option<Favorite> {
 }
 
 #[tauri::command]
-/// Saves the star (or clears it with `None`), then syncs the tray title and mark.
-pub fn set_favorite(
-    app: AppHandle,
-    favorite: Option<Favorite>,
-) -> Result<Option<Favorite>, String> {
-    let preferences = Preferences::with_favorite(favorite);
-    preferences.save()?;
+pub fn get_hidden(state: State<'_, AppState>) -> Vec<Favorite> {
+    state
+        .preferences
+        .lock()
+        .ok()
+        .map(|preferences| preferences.hidden.clone())
+        .unwrap_or_default()
+}
 
-    tray::sync_icon(&app, preferences.favorite);
+fn store_preferences(app: &AppHandle, preferences: Preferences) -> Result<Preferences, String> {
+    preferences.save()?;
+    tray::sync_icon(app, preferences.favorite);
 
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(mut guard) = state.preferences.lock() {
@@ -59,11 +62,77 @@ pub fn set_favorite(
 
         let snapshot = state.snapshot.lock().ok().and_then(|guard| guard.clone());
         if let Some(snapshot) = snapshot {
-            refresh::publish(&app, &snapshot);
+            refresh::publish(app, &snapshot);
         }
     }
 
-    Ok(preferences.favorite)
+    Ok(preferences)
+}
+
+fn current_preferences(app: &AppHandle) -> Preferences {
+    app.try_state::<AppState>()
+        .and_then(|state| state.preferences.lock().ok().map(|guard| guard.clone()))
+        .unwrap_or_else(Preferences::load)
+}
+
+#[tauri::command]
+/// Saves the star (or clears it with `None`), then syncs the tray title and mark.
+pub fn set_favorite(
+    app: AppHandle,
+    favorite: Option<Favorite>,
+) -> Result<Option<Favorite>, String> {
+    let mut preferences = current_preferences(&app);
+    preferences.favorite = favorite;
+    Ok(store_preferences(&app, preferences)?.favorite)
+}
+
+#[tauri::command]
+/// Hides harnesses from Overview and from the tabs; a hidden favorite leaves the tray.
+pub fn set_hidden(app: AppHandle, hidden: Vec<Favorite>) -> Result<Vec<Favorite>, String> {
+    let mut preferences = current_preferences(&app);
+    preferences.hidden = hidden;
+    if let Some(favorite) = preferences.favorite {
+        if preferences.hidden.contains(&favorite) {
+            preferences.favorite = None;
+        }
+    }
+    Ok(store_preferences(&app, preferences)?.hidden)
+}
+
+#[tauri::command]
+pub fn get_theme(state: State<'_, AppState>) -> Theme {
+    state
+        .preferences
+        .lock()
+        .ok()
+        .map(|preferences| preferences.theme)
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn set_theme(app: AppHandle, theme: Theme) -> Result<Theme, String> {
+    let mut preferences = current_preferences(&app);
+    preferences.theme = theme;
+    let saved = store_preferences(&app, preferences)?.theme;
+    crate::appearance::apply_to_app(&app, saved);
+    Ok(saved)
+}
+
+#[tauri::command]
+pub fn get_order(state: State<'_, AppState>) -> Vec<Favorite> {
+    state
+        .preferences
+        .lock()
+        .ok()
+        .map(|preferences| complete_order(&preferences.order))
+        .unwrap_or_else(|| complete_order(&[]))
+}
+
+#[tauri::command]
+pub fn set_order(app: AppHandle, order: Vec<Favorite>) -> Result<Vec<Favorite>, String> {
+    let mut preferences = current_preferences(&app);
+    preferences.order = complete_order(&order);
+    Ok(store_preferences(&app, preferences)?.order)
 }
 
 #[tauri::command]

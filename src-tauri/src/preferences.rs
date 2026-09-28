@@ -13,6 +13,37 @@ pub enum Favorite {
     Codex,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Theme {
+    #[default]
+    Dark,
+    Light,
+    Translucent,
+}
+
+pub const DEFAULT_ORDER: [Favorite; 4] = [
+    Favorite::CommandCode,
+    Favorite::Grok,
+    Favorite::OpenCode,
+    Favorite::Codex,
+];
+
+pub fn complete_order(order: &[Favorite]) -> Vec<Favorite> {
+    let mut out = Vec::new();
+    for id in order {
+        if !out.contains(id) {
+            out.push(*id);
+        }
+    }
+    for id in DEFAULT_ORDER {
+        if !out.contains(&id) {
+            out.push(id);
+        }
+    }
+    out
+}
+
 impl Favorite {
     pub const ALL: [Favorite; 4] = [
         Favorite::Grok,
@@ -35,12 +66,21 @@ impl Favorite {
 #[serde(rename_all = "camelCase")]
 pub struct Preferences {
     pub favorite: Option<Favorite>,
+    #[serde(default)]
+    pub hidden: Vec<Favorite>,
+    #[serde(default)]
+    pub theme: Theme,
+    #[serde(default)]
+    pub order: Vec<Favorite>,
 }
 
 impl Default for Preferences {
     fn default() -> Self {
         Self {
             favorite: Some(Favorite::CommandCode),
+            hidden: Vec::new(),
+            theme: Theme::Dark,
+            order: DEFAULT_ORDER.to_vec(),
         }
     }
 }
@@ -55,7 +95,12 @@ impl Preferences {
     }
 
     pub fn with_favorite(favorite: Option<Favorite>) -> Self {
-        Self { favorite }
+        Self {
+            favorite,
+            hidden: Vec::new(),
+            theme: Theme::Dark,
+            order: DEFAULT_ORDER.to_vec(),
+        }
     }
 }
 
@@ -80,12 +125,25 @@ pub fn load(path: &Path) -> Preferences {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) else {
         return Preferences::default();
     };
+    let hidden = hidden_from(&value);
+    let theme = theme_from(&value);
+    let order = complete_order(&order_from(&value));
     if let Some(entry) = value.get("favorite") {
         return match entry.as_str() {
             Some(id) => parse_favorite(id)
-                .map(|favorite| Preferences::with_favorite(Some(favorite)))
+                .map(|favorite| Preferences {
+                    favorite: Some(favorite),
+                    hidden,
+                    theme,
+                    order,
+                })
                 .unwrap_or_default(),
-            None => Preferences::with_favorite(None),
+            None => Preferences {
+                favorite: None,
+                hidden,
+                theme,
+                order,
+            },
         };
     }
 
@@ -97,12 +155,58 @@ pub fn load(path: &Path) -> Preferences {
             .find_map(parse_favorite);
 
         return match favorite {
-            Some(favorite) => Preferences::with_favorite(Some(favorite)),
+            Some(favorite) => Preferences {
+                favorite: Some(favorite),
+                hidden,
+                theme,
+                order,
+            },
             None => Preferences::default(),
         };
     }
 
-    Preferences::default()
+    Preferences {
+        favorite: Preferences::default().favorite,
+        hidden,
+        theme,
+        order,
+    }
+}
+
+fn theme_from(value: &serde_json::Value) -> Theme {
+    value
+        .get("theme")
+        .and_then(|entry| entry.as_str())
+        .and_then(|id| serde_json::from_value(serde_json::Value::String(id.to_string())).ok())
+        .unwrap_or_default()
+}
+
+fn order_from(value: &serde_json::Value) -> Vec<Favorite> {
+    value
+        .get("order")
+        .and_then(|list| list.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.as_str())
+                .filter_map(parse_favorite)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn hidden_from(value: &serde_json::Value) -> Vec<Favorite> {
+    value
+        .get("hidden")
+        .and_then(|list| list.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.as_str())
+                .filter_map(parse_favorite)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn parse_favorite(id: &str) -> Option<Favorite> {
@@ -169,6 +273,71 @@ mod tests {
         fs::write(&path, r#"{"favorite":"openCodeTodayCost"}"#).expect("writes config");
 
         assert_eq!(load(&path), Preferences::default());
+    }
+
+    #[test]
+    fn round_trips_hidden_harnesses() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("preferences.json");
+        let preferences = Preferences {
+            favorite: Some(Favorite::Grok),
+            hidden: vec![Favorite::Codex, Favorite::OpenCode],
+            theme: Theme::Light,
+            order: DEFAULT_ORDER.to_vec(),
+        };
+
+        save(&path, &preferences).expect("saves preferences");
+
+        assert_eq!(load(&path), preferences);
+    }
+
+    #[test]
+    fn round_trips_harness_order() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("preferences.json");
+        let preferences = Preferences {
+            favorite: Some(Favorite::Grok),
+            hidden: Vec::new(),
+            theme: Theme::Dark,
+            order: vec![
+                Favorite::Grok,
+                Favorite::Codex,
+                Favorite::CommandCode,
+                Favorite::OpenCode,
+            ],
+        };
+
+        save(&path, &preferences).expect("saves preferences");
+
+        assert_eq!(load(&path).order, preferences.order);
+    }
+
+    #[test]
+    fn missing_order_uses_the_default() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("preferences.json");
+        fs::write(&path, r#"{"favorite":"grok"}"#).expect("writes config");
+
+        assert_eq!(load(&path).order, DEFAULT_ORDER.to_vec());
+    }
+
+    #[test]
+    fn missing_theme_defaults_to_dark() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("preferences.json");
+        fs::write(&path, r#"{"favorite":"grok"}"#).expect("writes config");
+
+        assert_eq!(load(&path).theme, Theme::Dark);
+    }
+
+    #[test]
+    fn missing_hidden_stays_empty() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("preferences.json");
+        fs::write(&path, r#"{"favorite":"grok"}"#).expect("writes config");
+
+        assert_eq!(load(&path).hidden, Vec::<Favorite>::new());
+        assert_eq!(load(&path).favorite, Some(Favorite::Grok));
     }
 
     #[test]
