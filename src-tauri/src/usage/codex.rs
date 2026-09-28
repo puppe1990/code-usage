@@ -98,6 +98,7 @@ fn limits_snapshot(value: &serde_json::Value, fetched_at: DateTime<Utc>) -> Opti
     let limits = CodexLimits {
         primary: value.get("primary").and_then(window),
         secondary: value.get("secondary").and_then(window),
+        monthly: monthly_window(value),
         plan: value
             .get("plan_type")
             .and_then(|plan| plan.as_str())
@@ -105,7 +106,8 @@ fn limits_snapshot(value: &serde_json::Value, fetched_at: DateTime<Utc>) -> Opti
         fetched_at,
     };
 
-    (limits.primary.is_some() || limits.secondary.is_some()).then_some(limits)
+    (limits.primary.is_some() || limits.secondary.is_some() || limits.monthly.is_some())
+        .then_some(limits)
 }
 
 fn window(value: &serde_json::Value) -> Option<CodexWindow> {
@@ -113,6 +115,30 @@ fn window(value: &serde_json::Value) -> Option<CodexWindow> {
         percent_used: value.get("used_percent")?.as_f64()?,
         window_minutes: value.get("window_minutes").and_then(|value| value.as_i64()),
         resets_at: value
+            .get("resets_at")
+            .and_then(|value| value.as_i64())
+            .and_then(|seconds| DateTime::from_timestamp(seconds, 0)),
+    })
+}
+
+/// Workspace spend control, the monthly credit cap the CLI labels "Monthly credit limit".
+fn monthly_window(value: &serde_json::Value) -> Option<CodexWindow> {
+    if let Some(window) = value.get("monthly").and_then(window) {
+        return Some(window);
+    }
+
+    let limit = value.get("individual_limit")?;
+    if limit.is_null() {
+        return None;
+    }
+
+    let remaining = limit
+        .get("remaining_percent")
+        .and_then(|value| value.as_f64().or_else(|| value.as_i64().map(|n| n as f64)))?;
+    Some(CodexWindow {
+        percent_used: (100.0 - remaining).clamp(0.0, 100.0),
+        window_minutes: Some(30 * 24 * 60),
+        resets_at: limit
             .get("resets_at")
             .and_then(|value| value.as_i64())
             .and_then(|seconds| DateTime::from_timestamp(seconds, 0)),
@@ -315,6 +341,25 @@ mod tests {
             })
         );
         assert_eq!(limits.secondary.unwrap().window_minutes, Some(10080));
+        assert_eq!(limits.monthly, None);
+    }
+
+    #[test]
+    fn reads_the_monthly_credit_cap_from_individual_limit() {
+        let event = parse_line(
+            r#"{"timestamp":"2026-09-17T12:05:00.000Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":12.5,"window_minutes":300,"resets_at":1789650000},"secondary":{"used_percent":3.2,"window_minutes":10080,"resets_at":1790600000},"individual_limit":{"limit":"100","used":"12","remaining_percent":88,"resets_at":1792000000},"plan_type":"plus"}}}"#,
+        )
+        .expect("a token_count event");
+
+        let limits = event.limits.expect("limits");
+        assert_eq!(
+            limits.monthly,
+            Some(CodexWindow {
+                percent_used: 12.0,
+                window_minutes: Some(43_200),
+                resets_at: Some(Utc.timestamp_opt(1_792_000_000, 0).unwrap()),
+            })
+        );
     }
 
     #[test]
@@ -398,6 +443,7 @@ mod tests {
         assert_eq!(limits.plan.as_deref(), Some("plus"));
         assert_eq!(limits.primary.unwrap().percent_used, 18.0);
         assert_eq!(limits.secondary.unwrap().percent_used, 4.6);
+        assert_eq!(limits.monthly.unwrap().percent_used, 12.0);
     }
 
     #[test]

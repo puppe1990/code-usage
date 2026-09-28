@@ -77,6 +77,7 @@ pub fn run() {
             commands::refresh_now,
             commands::list_accounts,
             commands::switch_account,
+            commands::fit_panel,
             commands::hide_panel,
             commands::quit_app
         ])

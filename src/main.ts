@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { panelWindowHeight } from "./fit";
 import { DEFAULT_ORDER, harnessOrder, moveHarnessTo, renderPanel } from "./render";
 import type {
   AccountEntry,
@@ -70,6 +71,19 @@ function render(): void {
     notice.textContent = `falha ao desenhar o painel: ${String(error)}`;
     root.replaceChildren(notice);
   }
+  requestAnimationFrame(fitWindow);
+}
+
+function fitWindow(): void {
+  const panel = root.querySelector<HTMLElement>(".panel");
+  if (!panel) return;
+  const previous = panel.style.maxHeight;
+  panel.style.maxHeight = "none";
+  const height = panelWindowHeight(panel.getBoundingClientRect().height);
+  panel.style.maxHeight = previous;
+  void invoke("fit_panel", { height }).catch((error) => {
+    console.error("failed to fit the panel window", error);
+  });
 }
 
 async function pull(): Promise<void> {

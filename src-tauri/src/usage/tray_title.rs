@@ -82,25 +82,31 @@ fn open_code_values(snapshot: &UsageSnapshot) -> Vec<String> {
 }
 
 /// Codex labels every window by its own length instead of a fixed slot: the free plan reports a
-/// single monthly window, the paid ones a 5-hour and a weekly one.
+/// single monthly window, the paid ones a 5-hour and a weekly one. Workspace accounts also send
+/// a monthly credit cap (`individual_limit`).
 fn codex_values(snapshot: &UsageSnapshot) -> Vec<String> {
-    let windows = provider(snapshot, Provider::Codex)
+    let windows: Vec<String> = provider(snapshot, Provider::Codex)
         .and_then(|usage| usage.codex.as_ref())
         .map(|limits| {
-            [
+            let mut five_hour = None;
+            let mut weekly = None;
+            let mut monthly = None;
+            for (fallback, window) in [
                 ("5h", limits.primary.as_ref()),
                 ("W", limits.secondary.as_ref()),
-            ]
-            .into_iter()
-            .filter_map(|(fallback, window)| {
-                window.map(|window| {
-                    window_value(
-                        window_label(window.window_minutes, fallback),
-                        window.percent_used,
-                    )
-                })
-            })
-            .collect::<Vec<_>>()
+                ("M", limits.monthly.as_ref()),
+            ] {
+                let Some(window) = window else { continue };
+                let label = window_label(window.window_minutes, fallback);
+                let value = window_value(label, window.percent_used);
+                match label {
+                    "5h" if five_hour.is_none() => five_hour = Some(value),
+                    "W" if weekly.is_none() => weekly = Some(value),
+                    "M" if monthly.is_none() => monthly = Some(value),
+                    _ => {}
+                }
+            }
+            [five_hour, weekly, monthly].into_iter().flatten().collect()
         })
         .unwrap_or_default();
 
@@ -249,6 +255,7 @@ mod tests {
         CodexLimits {
             primary: primary.map(window),
             secondary: secondary.map(window),
+            monthly: None,
             plan: Some("plus".to_string()),
             fetched_at: now,
         }
@@ -416,6 +423,22 @@ mod tests {
         assert_eq!(
             format_title(&snapshot, Some(Favorite::Codex)),
             "5h 18% · W 5%"
+        );
+    }
+
+    #[test]
+    fn renders_the_codex_monthly_credit_cap() {
+        let mut limits = codex_limits(Some((18.0, 300)), Some((4.6, 10080)));
+        limits.monthly = Some(CodexWindow {
+            percent_used: 12.0,
+            window_minutes: Some(43_200),
+            resets_at: Some(Utc.with_ymd_and_hms(2026, 9, 17, 15, 0, 0).unwrap()),
+        });
+        let snapshot = snapshot(vec![codex_provider(Some(limits))]);
+
+        assert_eq!(
+            format_title(&snapshot, Some(Favorite::Codex)),
+            "5h 18% · W 5% · M 12%"
         );
     }
 

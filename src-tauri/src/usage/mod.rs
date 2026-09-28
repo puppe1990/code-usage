@@ -120,6 +120,7 @@ pub struct GrokLimits {
 
 /// One plan window of the Codex CLI: its length decides the label (`5h`, `W`, `M`), because the
 /// free plan reports a single monthly window while the paid ones report a 5-hour and a weekly one.
+/// Workspace accounts also send `individual_limit`, the monthly credit cap.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexWindow {
@@ -135,6 +136,8 @@ pub struct CodexLimits {
     pub primary: Option<CodexWindow>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub secondary: Option<CodexWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monthly: Option<CodexWindow>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan: Option<String>,
     pub fetched_at: DateTime<Utc>,
@@ -420,7 +423,7 @@ mod smoke_tests {
             }
             if let Some(limits) = &usage.codex {
                 println!(
-                    "  codex: plan={:?} primary={:?}% ({} min) secondary={:?}% ({} min)",
+                    "  codex: plan={:?} primary={:?}% ({} min) secondary={:?}% ({} min) monthly={:?}%",
                     limits.plan,
                     limits.primary.as_ref().map(|window| window.percent_used),
                     limits
@@ -434,6 +437,7 @@ mod smoke_tests {
                         .as_ref()
                         .and_then(|window| window.window_minutes)
                         .unwrap_or(-1),
+                    limits.monthly.as_ref().map(|window| window.percent_used),
                 );
             }
         }
