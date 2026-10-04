@@ -5,14 +5,20 @@
 
 use super::{read_json, write_json, Account};
 use crate::usage::grok::auth_path;
-use serde_json::Value;
+use chrono::{DateTime, Utc};
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+static SESSION_ACCESS: Mutex<()> = Mutex::new(());
 
 pub fn list() -> Result<Vec<Account>, String> {
+    let _guard = session_access()?;
     list_at(&auth_path())
 }
 
 pub fn switch(name: &str) -> Result<(), String> {
+    let _guard = session_access()?;
     switch_at(&auth_path(), name)
 }
 
@@ -31,24 +37,125 @@ fn list_at(auth: &Path) -> Result<Vec<Account>, String> {
     Ok(accounts)
 }
 
+pub fn sync() -> Result<(), String> {
+    let _guard = session_access()?;
+    let auth = auth_path();
+    let live = read_json(&auth)?;
+    snapshot_live(&auth, &profiles(&auth)?, live.as_ref())
+}
+
+fn session_access() -> Result<std::sync::MutexGuard<'static, ()>, String> {
+    SESSION_ACCESS
+        .lock()
+        .map_err(|_| "A sincronização do Grok falhou. Reinicie o Code Usage.".to_string())
+}
+
 fn switch_at(auth: &Path, name: &str) -> Result<(), String> {
-    let profile = profiles(auth)?
-        .into_iter()
-        .find(|profile| profile.matches(name))
+    let profiles = profiles(auth)?;
+    let target = profiles
+        .iter()
+        .find(|p| p.matches(name))
         .ok_or_else(|| format!("conta {name:?} não existe"))?;
+    let live = read_json(auth)?;
+    if live
+        .as_ref()
+        .and_then(credential_email)
+        .is_some_and(|email| Some(email) == target.email())
+    {
+        return snapshot_live(auth, &profiles, live.as_ref());
+    }
+    let credentials = validated_credentials(target)?;
+    snapshot_live(auth, &profiles, live.as_ref())?;
+    write_json(auth, credentials)
+}
 
-    let Some(credentials) = profile.credentials else {
-        return Err(format!(
-            "perfil {:?} não tem credencial salva",
-            profile.name()
-        ));
+fn validated_credentials(profile: &Profile) -> Result<&Value, String> {
+    let credentials = profile
+        .credentials
+        .as_ref()
+        .ok_or_else(|| format!("perfil {:?} não tem credencial salva", profile.name()))?;
+    if credential_email(credentials).is_none() || credential_email(credentials) != profile.email() {
+        return Err(format!("A credencial de {:?} não corresponde à conta salva. Rode grok-accounts login para atualizar o perfil.", profile.name()));
+    }
+    validate_expiry(credentials, &profile.name())?;
+    Ok(credentials)
+}
+
+fn validate_expiry(credentials: &Value, name: &str) -> Result<(), String> {
+    for entry in credentials
+        .as_object()
+        .into_iter()
+        .flat_map(|entries| entries.values())
+    {
+        let expiry = entry
+            .get("expires_at")
+            .and_then(Value::as_str)
+            .and_then(|text| DateTime::parse_from_rfc3339(text).ok());
+        let can_refresh = entry
+            .get("refresh_token")
+            .and_then(Value::as_str)
+            .is_some_and(|token| !token.trim().is_empty());
+        if entry.get("email").and_then(Value::as_str).is_some()
+            && expiry.is_some_and(|expires| expires < Utc::now())
+            && !can_refresh
+        {
+            return Err(format!("A sessão de {name:?} expirou e não pode ser renovada. Rode grok-accounts login para atualizar o perfil."));
+        }
+    }
+    Ok(())
+}
+
+fn snapshot_live(auth: &Path, profiles: &[Profile], live: Option<&Value>) -> Result<(), String> {
+    let Some(live) = live else { return Ok(()) };
+    let Some(email) = credential_email(live) else {
+        return Err("A sessão atual do Grok não contém uma conta válida. Rode grok-accounts login; nenhuma credencial foi substituída.".to_string());
     };
+    let matching = profiles
+        .iter()
+        .filter(|profile| profile.email().as_ref() == Some(&email))
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return save_unsaved(auth, &email, live);
+    }
+    for profile in matching {
+        update_snapshot(&profile.path, live)?;
+    }
+    Ok(())
+}
 
-    write_json(auth, &credentials)
+fn update_snapshot(path: &Path, live: &Value) -> Result<(), String> {
+    let mut saved = read_json(path)?.ok_or_else(|| {
+        format!(
+            "O perfil {} desapareceu; a troca foi cancelada.",
+            path.display()
+        )
+    })?;
+    if saved.get("auth") == Some(live) {
+        return Ok(());
+    }
+    saved["auth"] = live.clone();
+    saved["saved_at"] = json!(Utc::now().to_rfc3339());
+    write_json(path, &saved)
+}
+
+fn save_unsaved(auth: &Path, email: &str, live: &Value) -> Result<(), String> {
+    let alias = email
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect::<String>();
+    let path = profiles_dir_for(auth).join(format!("{alias}.json"));
+    if path.exists() {
+        return Err("Não foi possível guardar a conta atual sem sobrescrever outro perfil. Rode grok-accounts add --alias NOME antes de trocar.".to_string());
+    }
+    write_json(
+        &path,
+        &json!({"alias": email, "email": email, "saved_at": Utc::now().to_rfc3339(), "auth": live}),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq)]
 struct Profile {
+    path: PathBuf,
     alias: String,
     email: String,
     credentials: Option<Value>,
@@ -102,6 +209,7 @@ fn profiles(auth: &Path) -> Result<Vec<Profile>, String> {
                 .to_string()
         };
         profiles.push(Profile {
+            path: entry.path(),
             alias: text("alias"),
             email: text("email"),
             credentials: value.get("auth").filter(|auth| !auth.is_null()).cloned(),
@@ -118,6 +226,10 @@ fn profiles_dir_for(auth: &Path) -> PathBuf {
 /// E-mail of the live login: the first credential (by key) that carries one.
 fn live_email(auth: &Path) -> Option<String> {
     let value = read_json(auth).ok().flatten()?;
+    credential_email(&value)
+}
+
+fn credential_email(value: &Value) -> Option<String> {
     let mut keys = value.as_object()?.keys().collect::<Vec<_>>();
     keys.sort();
 
@@ -133,151 +245,5 @@ fn live_email(auth: &Path) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-    use std::fs;
-    use tempfile::TempDir;
-
-    fn profile(dir: &TempDir, file: &str, alias: &str, email: &str, key: &str) {
-        let profiles = dir.path().join("accounts");
-        fs::create_dir_all(&profiles).expect("creates profiles dir");
-        fs::write(
-            profiles.join(file),
-            json!({
-                "alias": alias,
-                "email": email,
-                "saved_at": "2026-09-22T02:35:23-03:00",
-                "auth": {"https://auth.x.ai::client": {"key": key, "email": email}},
-            })
-            .to_string(),
-        )
-        .expect("writes profile");
-    }
-
-    fn live(dir: &TempDir, email: &str, key: &str) -> PathBuf {
-        let auth = dir.path().join("auth.json");
-        fs::write(
-            &auth,
-            json!({"https://auth.x.ai::client": {"key": key, "email": email}}).to_string(),
-        )
-        .expect("writes live auth");
-        auth
-    }
-
-    #[test]
-    fn lists_the_profiles_with_the_live_email_active() {
-        let dir = TempDir::new().expect("temp dir");
-        profile(
-            &dir,
-            "pessoal.json",
-            "pessoal",
-            "eu@gmail.com",
-            "key-personal",
-        );
-        profile(
-            &dir,
-            "trabalho.json",
-            "trabalho",
-            "trabalho@empresa.com",
-            "key-work",
-        );
-        let auth = live(&dir, "EU@gmail.com", "key-personal");
-
-        assert_eq!(
-            list_at(&auth).expect("lists"),
-            vec![
-                Account {
-                    name: "pessoal".to_string(),
-                    active: true
-                },
-                Account {
-                    name: "trabalho".to_string(),
-                    active: false
-                },
-            ]
-        );
-    }
-
-    #[test]
-    fn switching_copies_the_profile_credentials_over_the_live_file() {
-        let dir = TempDir::new().expect("temp dir");
-        profile(
-            &dir,
-            "trabalho.json",
-            "trabalho",
-            "trabalho@empresa.com",
-            "key-work",
-        );
-        let auth = live(&dir, "eu@gmail.com", "key-personal");
-
-        switch_at(&auth, "trabalho").expect("switches");
-
-        let value: Value = serde_json::from_str(&fs::read_to_string(&auth).expect("live")).unwrap();
-        assert_eq!(value["https://auth.x.ai::client"]["key"], json!("key-work"));
-        assert!(list_at(&auth).expect("lists")[0].active);
-    }
-
-    #[test]
-    fn switching_by_email_works_too() {
-        let dir = TempDir::new().expect("temp dir");
-        profile(
-            &dir,
-            "trabalho.json",
-            "trabalho",
-            "trabalho@empresa.com",
-            "key-work",
-        );
-        let auth = live(&dir, "eu@gmail.com", "key-personal");
-
-        switch_at(&auth, "trabalho@empresa.com").expect("switches by email");
-
-        let value: Value = serde_json::from_str(&fs::read_to_string(&auth).expect("live")).unwrap();
-        assert_eq!(value["https://auth.x.ai::client"]["key"], json!("key-work"));
-    }
-
-    #[test]
-    fn an_unknown_profile_is_an_error_and_changes_nothing() {
-        let dir = TempDir::new().expect("temp dir");
-        profile(
-            &dir,
-            "trabalho.json",
-            "trabalho",
-            "trabalho@empresa.com",
-            "key-work",
-        );
-        let auth = live(&dir, "eu@gmail.com", "key-personal");
-        let before = fs::read_to_string(&auth).expect("live");
-
-        assert_eq!(
-            switch_at(&auth, "nope").expect_err("unknown profile"),
-            "conta \"nope\" não existe"
-        );
-        assert_eq!(fs::read_to_string(&auth).expect("live"), before);
-    }
-
-    #[test]
-    fn a_profile_without_credentials_is_refused() {
-        let dir = TempDir::new().expect("temp dir");
-        let profiles = dir.path().join("accounts");
-        fs::create_dir_all(&profiles).expect("creates profiles dir");
-        fs::write(
-            profiles.join("vazio.json"),
-            json!({"alias": "vazio", "email": "vazio@gmail.com"}).to_string(),
-        )
-        .expect("writes profile");
-        let auth = live(&dir, "eu@gmail.com", "key-personal");
-
-        assert!(switch_at(&auth, "vazio")
-            .expect_err("no credentials")
-            .contains("não tem credencial salva"));
-    }
-
-    #[test]
-    fn a_missing_profiles_dir_lists_nothing() {
-        let dir = TempDir::new().expect("temp dir");
-        let auth = dir.path().join("auth.json");
-
-        assert_eq!(list_at(&auth).expect("lists"), Vec::new());
-    }
-}
+#[path = "grok_tests.rs"]
+mod tests;
