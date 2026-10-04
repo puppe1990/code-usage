@@ -25,6 +25,9 @@ pub fn publish(app: &AppHandle, snapshot: &UsageSnapshot) {
 
 /// Recomputes, publishes, then refreshes the plan-limit caches and publishes again on change.
 pub fn refresh_and_publish(app: &AppHandle) {
+    if let Err(error) = crate::accounts::sync_grok() {
+        eprintln!("Grok: não foi possível guardar a sessão renovada: {error}");
+    }
     let snapshot = usage::snapshot(Local::now());
     publish(app, &snapshot);
 

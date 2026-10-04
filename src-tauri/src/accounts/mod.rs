@@ -42,6 +42,11 @@ pub fn switch(provider: Provider, name: &str) -> Result<(), String> {
     }
 }
 
+/// Keeps the Grok snapshot current without refreshing or restoring credentials.
+pub fn sync_grok() -> Result<(), String> {
+    grok::sync()
+}
+
 /// Reads a JSON file; `Ok(None)` when it does not exist and `Err` when it is not valid JSON.
 pub(crate) fn read_json(path: &Path) -> Result<Option<serde_json::Value>, String> {
     let content = match std::fs::read_to_string(path) {
